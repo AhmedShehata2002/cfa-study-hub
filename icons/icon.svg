@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#06B6A0"/>
+  <text x="256" y="200" font-family="Georgia,serif" font-size="96" font-weight="700"
+        fill="white" text-anchor="middle" dominant-baseline="middle">CFA</text>
+  <text x="256" y="310" font-family="monospace" font-size="48" font-weight="400"
+        fill="rgba(255,255,255,0.75)" text-anchor="middle" dominant-baseline="middle">STUDY HUB</text>
+</svg>

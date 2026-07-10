@@ -1,0 +1,18 @@
+{
+  "name": "CFA Study Hub",
+  "short_name": "CFA Hub",
+  "description": "CFA Level I study tool with AI lessons, quizzes, and a progress tracker.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#06B6A0",
+  "background_color": "#FFFFFF",
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

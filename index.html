@@ -1,0 +1,1251 @@
+<style>
+  :root{
+    --ink:#FFFFFF; --slate:#F7F7F4; --slate-2:#EEEDE6;
+    --parchment:#1C1B17; --parchment-dim:#767468;
+    --brass:#06B6A0; --brass-dim:#048C7F;
+    --sage:#16A34A; --clay:#F43F5E; --rule:#E4E2D8; --flame:#FF7A29; --sky:#2F7DE0;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;}
+  body{background:var(--ink);color:var(--parchment);font-family:'IBM Plex Sans',system-ui,sans-serif;display:flex;justify-content:center;}
+  .shell{width:100%;max-width:420px;min-height:100vh;display:flex;flex-direction:column;position:relative;padding-bottom:78px;}
+  .scroll{flex:1;padding:24px 18px 12px;overflow-y:auto;}
+  h1,h2,h3{font-family:'Fraunces',Georgia,serif;font-weight:600;margin:0;}
+  .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--brass);}
+  .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
+  .topbar h1{font-size:24px;}
+  .streakchip{display:flex;align-items:center;gap:6px;background:var(--slate);border:1px solid var(--rule);border-radius:20px;padding:6px 12px;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--flame);}
+  .card{background:var(--slate);border:1px solid var(--rule);border-radius:12px;padding:20px;margin-bottom:14px;box-shadow:0 1px 3px rgba(28,27,23,.04);}
+  label{display:block;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--brass-dim);margin-bottom:8px;}
+  input[type=text],input[type=date],textarea,select{width:100%;background:var(--slate-2);border:1px solid var(--rule);border-radius:6px;color:var(--parchment);font-family:'IBM Plex Sans',sans-serif;font-size:14px;padding:12px;resize:vertical;}
+  textarea{min-height:100px;}
+  input:focus,textarea:focus,select:focus{outline:none;border-color:var(--brass-dim);}
+  .btn{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;background:var(--brass);color:#fff;border:none;border-radius:8px;padding:14px 20px;cursor:pointer;font-weight:600;width:100%;text-align:center;transition:transform .1s;}
+  .btn:active{transform:scale(.97);}
+  .btn.secondary{background:transparent;border:1px solid var(--rule);color:var(--parchment-dim);}
+  .btn.small{padding:9px 14px;width:auto;font-size:11px;}
+  .btn:disabled{opacity:.35;}
+  .row{display:flex;gap:10px;flex-wrap:wrap;}
+  .ringwrap{display:flex;align-items:center;gap:16px;}
+  .ring{width:72px;height:72px;flex-shrink:0;}
+  .ring circle{fill:none;stroke-width:7;}
+  .ring .bg{stroke:var(--rule);}
+  .ring .fg{stroke:var(--brass);stroke-linecap:round;transform:rotate(-90deg);transform-origin:center;transition:stroke-dashoffset .4s ease;}
+  .ringlabel .big{font-family:'IBM Plex Mono',monospace;font-size:22px;color:var(--parchment);}
+  .ringlabel .small{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--parchment-dim);text-transform:uppercase;letter-spacing:.06em;}
+  .hourshint{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--sky);margin-top:10px;}
+  .subheat{display:flex;flex-direction:column;gap:4px;overflow-x:auto;}
+  .subheat-row{display:flex;align-items:center;gap:4px;}
+  .subheat-label{width:32px;flex-shrink:0;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--parchment-dim);}
+  .subheat-cells{display:flex;gap:3px;}
+  .subheat-cell{width:15px;height:15px;border-radius:3px;background:var(--rule);flex-shrink:0;}
+  .subheat-cell.l1{background:#B2EDE3;} .subheat-cell.l2{background:#66D4C0;} .subheat-cell.l3{background:#1FAE95;} .subheat-cell.l4{background:var(--brass);}
+  .subheat-legend{display:flex;align-items:center;gap:5px;margin-top:10px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--parchment-dim);}
+
+  .path-chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;margin-bottom:14px;}
+  .path-chip{flex-shrink:0;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.04em;
+    padding:7px 13px;border-radius:16px;border:1px solid var(--rule);color:var(--parchment-dim);cursor:pointer;background:var(--slate-2);}
+  .path-chip.active{background:var(--brass);color:#fff;border-color:var(--brass);}
+  .path-wrap{position:relative;margin:0 auto;}
+  @keyframes nodeIn{0%{opacity:0;transform:translate(-50%,-50%) scale(.5);}100%{opacity:1;transform:translate(-50%,-50%) scale(1);}}
+  @keyframes pulseRing{0%{box-shadow:0 0 0 0 rgba(6,182,160,.35);}70%{box-shadow:0 0 0 12px rgba(6,182,160,0);}100%{box-shadow:0 0 0 0 rgba(6,182,160,0);}}
+  .path-node{position:absolute;width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;cursor:pointer;transform:translate(-50%,-50%);
+    border:2px solid var(--rule);background:var(--slate-2);color:var(--parchment-dim);box-shadow:0 2px 5px rgba(28,27,23,.1);
+    animation:nodeIn .45s cubic-bezier(.34,1.56,.64,1) backwards;transition:transform .15s;}
+  .path-node:active{transform:translate(-50%,-50%) scale(.92);}
+  .path-node.complete{background:var(--sage);border-color:var(--sage);color:#fff;font-size:18px;}
+  .path-node.in_progress{background:var(--brass);border-color:var(--brass);color:#fff;
+    animation:nodeIn .45s cubic-bezier(.34,1.56,.64,1) backwards, pulseRing 2.2s infinite;}
+  .path-node-label{position:absolute;font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--parchment-dim);
+    width:128px;text-align:center;line-height:1.3;transform:translateX(-50%);
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  .area{border-bottom:1px solid var(--rule);}
+  .area:last-child{border-bottom:none;}
+  .area-head{display:flex;justify-content:space-between;align-items:center;padding:14px 0;cursor:pointer;}
+  .area-head .name{font-family:'Fraunces',Georgia,serif;font-size:16px;}
+  .area-head .meta{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--parchment-dim);margin-top:2px;}
+  .area-progress{width:100%;height:4px;background:var(--rule);border-radius:2px;margin-top:6px;overflow:hidden;}
+  .area-progress .fill{height:100%;background:var(--brass);}
+  .reading-list{padding:0 0 12px;display:none;}
+  .reading-list.open{display:block;}
+  .reading-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;padding-left:8px;border-left:2px solid var(--rule);margin-bottom:2px;cursor:pointer;}
+  .reading-item .rname{font-size:13px;}
+  .pill{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.05em;text-transform:uppercase;padding:3px 8px;border-radius:10px;flex-shrink:0;margin-left:8px;}
+  .pill.not_started{background:rgba(118,116,104,.10);color:var(--parchment-dim);}
+  .pill.in_progress{background:rgba(255,122,41,.14);color:var(--flame);}
+  .pill.complete{background:rgba(22,164,74,.13);color:var(--sage);}
+  .chevron{transition:transform .15s;display:inline-block;}
+  .chevron.open{transform:rotate(90deg);}
+  .backlink{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--parchment-dim);margin-bottom:16px;cursor:pointer;display:inline-block;}
+  .statuspills{display:flex;gap:8px;margin-bottom:16px;}
+  .statuspill{flex:1;text-align:center;padding:10px 4px;border-radius:8px;border:1px solid var(--rule);font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;color:var(--parchment-dim);}
+  .statuspill.active.not_started{border-color:var(--parchment-dim);color:var(--parchment);}
+  .statuspill.active.in_progress{border-color:var(--flame);color:var(--flame);}
+  .statuspill.active.complete{border-color:var(--sage);color:var(--sage);}
+  .ledger{display:flex;gap:5px;margin-bottom:20px;}
+  .ledger .tick{flex:1;height:6px;border-radius:2px;background:var(--rule);}
+  .ledger .tick.correct{background:var(--sage);} .ledger .tick.wrong{background:var(--clay);} .ledger .tick.current{background:var(--brass);}
+  .qcount{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--brass-dim);margin-bottom:10px;}
+  .question{font-size:19px;line-height:1.45;margin-bottom:20px;font-family:'Fraunces',Georgia,serif;}
+  .options{display:flex;flex-direction:column;gap:10px;margin-bottom:6px;}
+  .opt{background:var(--slate-2);border:1px solid var(--rule);border-radius:8px;padding:14px 16px;cursor:pointer;font-size:14px;transition:transform .1s;}
+  .opt:active{transform:scale(.97);}
+  .opt.correct{border-color:var(--sage);background:rgba(22,164,74,.08);}
+  .opt.wrong{border-color:var(--clay);background:rgba(244,63,94,.08);}
+  .verdict{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;margin:16px 0 6px;}
+  .verdict.correct{color:var(--sage);} .verdict.wrong{color:var(--clay);}
+  .explain{font-size:14px;line-height:1.55;color:var(--parchment-dim);margin-bottom:20px;}
+  .brief-block{margin-bottom:18px;}
+  .brief-block .lbl{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--brass-dim);margin-bottom:6px;}
+  .brief-block p{font-size:14px;line-height:1.6;margin:0;}
+  .loading{display:flex;align-items:center;gap:10px;color:var(--brass-dim);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:20px 0;}
+  .spinner{width:14px;height:14px;border:2px solid var(--rule);border-top-color:var(--brass);border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .summary-score{font-family:'IBM Plex Mono',monospace;font-size:44px;color:var(--brass);}
+  .summary-label{color:var(--parchment-dim);font-size:13px;margin-top:4px;}
+  .celebrate{background:linear-gradient(135deg, rgba(6,182,160,.14), rgba(255,122,41,.14));border:1px solid var(--brass-dim);border-radius:12px;padding:18px;text-align:center;margin-bottom:14px;animation:pop .5s cubic-bezier(.34,1.56,.64,1);}
+  @keyframes pop{0%{transform:scale(.85);opacity:0;}100%{transform:scale(1);opacity:1;}}
+  .celebrate .big{font-family:'Fraunces',Georgia,serif;font-size:20px;margin-bottom:4px;}
+  .celebrate .small{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--parchment-dim);}
+  .freezechip{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--sky);background:rgba(47,125,224,.12);border-radius:10px;padding:3px 8px;margin-left:6px;}
+  .task-item{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--rule);}
+  .task-item:last-child{border-bottom:none;}
+  .task-check{width:18px;height:18px;border-radius:5px;border:1.5px solid var(--rule);flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+  .task-check.done{background:var(--sage);border-color:var(--sage);}
+  .task-body{flex:1;}
+  .task-title{font-size:14px;}
+  .task-title.done{color:var(--parchment-dim);text-decoration:line-through;}
+  .task-meta{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--parchment-dim);margin-top:2px;}
+  .task-project{font-family:'IBM Plex Mono',monospace;font-size:9px;padding:2px 7px;border-radius:8px;background:var(--slate-2);color:var(--sky);}
+  .navbar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:420px;background:var(--slate);border-top:1px solid var(--rule);display:flex;padding:10px 18px 14px;gap:8px;}
+  .navbtn{flex:1;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--parchment-dim);padding:8px 0;border-radius:8px;cursor:pointer;}
+  .navbtn.active{color:var(--brass);background:var(--slate-2);}
+  .muted{color:var(--parchment-dim);font-size:13px;line-height:1.6;}
+  .chat-msgs{display:flex;flex-direction:column;gap:10px;margin-bottom:14px;max-height:340px;overflow-y:auto;}
+  .chat-msg{max-width:85%;padding:10px 13px;border-radius:12px;font-size:13.5px;line-height:1.5;}
+  .chat-msg.user{align-self:flex-end;background:var(--brass);color:#fff;border-bottom-right-radius:3px;}
+  .chat-msg.assistant{align-self:flex-start;background:var(--slate-2);border:1px solid var(--rule);border-bottom-left-radius:3px;}
+  .chat-input-row{display:flex;gap:8px;}
+  .chat-input-row input{flex:1;}
+  .chat-input-row button{width:auto;padding:12px 16px;flex-shrink:0;}
+  .chat-empty{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--parchment-dim);margin-bottom:14px;}
+</style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="CFA Hub">
+<meta name="theme-color" content="#06B6A0">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon.svg">
+<title>CFA Study Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<div class="shell">
+  <div class="scroll" id="scroll"></div>
+  <div class="navbar" id="navbar">
+    <div class="navbtn" data-tab="today">Today</div>
+    <div class="navbtn" data-tab="cfa">CFA</div>
+    <div class="navbtn" data-tab="stats">Stats</div>
+  </div>
+</div>
+<script>
+/* ---------- Curriculum data: real module numbers/titles/durations from the course platform ---------- */
+const CURRICULUM = {
+  QM:{name:"Quantitative Methods", weightPct:"6-9%", avgWeight:7.5, readings:[
+    {num:"1.1", title:"Interest Rates and Return Measurement", minutes:25},
+    {num:"1.2", title:"Time-Weighted and Money-Weighted Returns", minutes:15},
+    {num:"1.3", title:"Common Measures of Return", minutes:20},
+    {num:"2.1", title:"Discounted Cash Flow Valuation", minutes:25},
+    {num:"2.2", title:"Implied Returns and Cash Flow Additivity", minutes:30},
+    {num:"3.1", title:"Central Tendency and Dispersion", minutes:35},
+    {num:"3.2", title:"Skewness, Kurtosis, and Correlation", minutes:30},
+    {num:"4.1", title:"Probability Models, Expected Values, and Bayes' Formula", minutes:20},
+    {num:"5.1", title:"Probability Models for Portfolio Return and Risk", minutes:30},
+    {num:"6.1", title:"Lognormal Distributions and Simulation Techniques", minutes:10},
+    {num:"7.1", title:"Sampling Techniques and the Central Limit Theorem", minutes:25},
+    {num:"8.1", title:"Hypothesis Testing Basics", minutes:20},
+    {num:"8.2", title:"Types of Hypothesis Tests", minutes:60},
+    {num:"9.1", title:"Tests for Independence", minutes:15},
+    {num:"10.1", title:"Linear Regression Basics", minutes:40},
+    {num:"10.2", title:"Analysis of Variance (ANOVA) and Goodness of Fit", minutes:25},
+    {num:"10.3", title:"Predicted Values and Functional Forms of Regression", minutes:15},
+    {num:"11.1", title:"Introduction to Fintech", minutes:null}
+  ]},
+  ECO:{name:"Economics", weightPct:"6-9%", avgWeight:7.5, readings:[
+    {num:"12.1", title:"Breakeven, Shutdown, and Scale", minutes:25},
+    {num:"12.2", title:"Characteristics of Market Structures", minutes:40},
+    {num:"12.3", title:"Identifying Market Structures", minutes:10},
+    {num:"13.1", title:"Business Cycles", minutes:25},
+    {num:"14.1", title:"Fiscal Policy Objectives", minutes:10},
+    {num:"14.2", title:"Fiscal Policy Tools and Implementation", minutes:20},
+    {num:"15.1", title:"Central Bank Objectives and Tools", minutes:20},
+    {num:"15.2", title:"Monetary Policy Effects and Limitations", minutes:20},
+    {num:"16.1", title:"Geopolitics", minutes:30},
+    {num:"17.1", title:"International Trade", minutes:30},
+    {num:"18.1", title:"The Foreign Exchange Market", minutes:20},
+    {num:"18.2", title:"Managing Exchange Rates", minutes:15},
+    {num:"19.1", title:"Foreign Exchange Rates", minutes:20}
+  ]},
+  CI:{name:"Corporate Issuers", weightPct:"6-9%", avgWeight:7.5, readings:[
+    {num:"21.1", title:"Stakeholders and ESG Factors", minutes:25},
+    {num:"22.1", title:"Corporate Governance", minutes:30},
+    {num:"23.1", title:"Liquidity Measures and Management", minutes:30},
+    {num:"24.1", title:"Capital Investments and Project Measures", minutes:30},
+    {num:"24.2", title:"Capital Allocation Principles and Real Options", minutes:10},
+    {num:"25.1", title:"Weighted-Average Cost of Capital", minutes:10},
+    {num:"25.2", title:"Capital Structure Theories", minutes:40},
+    {num:"26.1", title:"Business Model Features and Types", minutes:15}
+  ]},
+  FSA:{name:"Financial Statement Analysis", weightPct:"11-14%", avgWeight:12.5, readings:[
+    {num:"27.1", title:"Financial Statement Roles", minutes:40},
+    {num:"28.1", title:"Revenue Recognition", minutes:20},
+    {num:"28.2", title:"Expense Recognition", minutes:55},
+    {num:"28.3", title:"Nonrecurring Items", minutes:10},
+    {num:"28.4", title:"Earnings Per Share", minutes:35},
+    {num:"28.5", title:"Ratios and Common-Size Income Statements", minutes:10},
+    {num:"29.1", title:"Intangible Assets and Marketable Securities", minutes:35},
+    {num:"29.2", title:"Common-Size Balance Sheets", minutes:15},
+    {num:"30.1", title:"Cash Flow Introduction and Direct Method CFO", minutes:35},
+    {num:"30.2", title:"Indirect Method CFO", minutes:20},
+    {num:"30.3", title:"Investing and Financing Cash Flows and IFRS/U.S. GAAP Differences", minutes:45},
+    {num:"31.1", title:"Analyzing Statements of Cash Flows II", minutes:35},
+    {num:"32.1", title:"Inventory Measurement", minutes:15},
+    {num:"32.2", title:"Inflation Impact on FIFO and LIFO", minutes:25},
+    {num:"32.3", title:"Presentation and Disclosure", minutes:25},
+    {num:"33.1", title:"Intangible Long-Lived Assets", minutes:10},
+    {num:"33.2", title:"Impairment and Derecognition", minutes:20},
+    {num:"33.3", title:"Long-Term Asset Disclosures", minutes:15},
+    {num:"34.1", title:"Leases", minutes:40},
+    {num:"34.2", title:"Deferred Compensation and Disclosures", minutes:35},
+    {num:"35.1", title:"Differences Between Accounting Profit and Taxable Income", minutes:25},
+    {num:"35.2", title:"Deferred Tax Assets and Liabilities", minutes:20},
+    {num:"35.3", title:"Tax Rates and Disclosures", minutes:20},
+    {num:"36.1", title:"Reporting Quality", minutes:30},
+    {num:"36.2", title:"Accounting Choices and Estimates", minutes:20},
+    {num:"36.3", title:"Warning Signs", minutes:10},
+    {num:"37.1", title:"Introduction to Financial Ratios", minutes:25},
+    {num:"37.2", title:"Financial Ratios, Part 1", minutes:20},
+    {num:"37.3", title:"Financial Ratios, Part 2", minutes:35},
+    {num:"37.4", title:"DuPont Analysis", minutes:20},
+    {num:"37.5", title:"Industry-Specific Financial Ratios", minutes:10},
+    {num:"38.1", title:"Financial Statement Modeling", minutes:30}
+  ]},
+  EI:{name:"Equity Investments", weightPct:"11-14%", avgWeight:12.5, readings:[
+    {num:"39.1", title:"Markets, Assets, and Intermediaries", minutes:45},
+    {num:"39.2", title:"Positions and Leverage", minutes:15},
+    {num:"39.3", title:"Order Execution and Validity", minutes:40},
+    {num:"40.1", title:"Index Weighting Methods", minutes:35},
+    {num:"40.2", title:"Uses and Types of Indexes", minutes:25},
+    {num:"41.1", title:"Market Efficiency", minutes:40},
+    {num:"42.1", title:"Types of Equity Investments", minutes:10},
+    {num:"42.2", title:"Foreign Equities and Equity Risk", minutes:25},
+    {num:"43.1", title:"Company Research Reports", minutes:5},
+    {num:"43.2", title:"Revenue, Profitability, and Capital", minutes:20},
+    {num:"44.1", title:"Industry Analysis", minutes:30},
+    {num:"44.2", title:"Industry Structure and Competitive Positioning", minutes:30},
+    {num:"45.1", title:"Forecasting in Company Analysis", minutes:35},
+    {num:"46.1", title:"Dividends, Splits, and Repurchases", minutes:15},
+    {num:"46.2", title:"Dividend Discount Models", minutes:45},
+    {num:"46.3", title:"Relative Valuation Measures", minutes:45}
+  ]},
+  FI:{name:"Fixed Income", weightPct:"11-14%", avgWeight:12.5, readings:[
+    {num:"47.1", title:"Fixed-Income Instrument Features", minutes:20},
+    {num:"48.1", title:"Fixed-Income Cash Flows and Types", minutes:35},
+    {num:"49.1", title:"Fixed-Income Issuance and Trading", minutes:25},
+    {num:"50.1", title:"Fixed-Income Markets for Corporate Issuers", minutes:35},
+    {num:"51.1", title:"Fixed-Income Markets for Government Issuers", minutes:15},
+    {num:"52.1", title:"Fixed-Income Bond Valuation: Prices and Yields", minutes:35},
+    {num:"53.1", title:"Yield and Yield Spread Measures for Fixed-Rate Bonds", minutes:35},
+    {num:"54.1", title:"Yield and Yield Spread Measures for Floating-Rate Instruments", minutes:15},
+    {num:"55.1", title:"The Term Structure of Interest Rates: Spot, Par, and Forward Curves", minutes:35},
+    {num:"56.1", title:"Interest Rate Risk and Return", minutes:35},
+    {num:"57.1", title:"Yield-Based Bond Duration Measures and Properties", minutes:20},
+    {num:"58.1", title:"Yield-Based Bond Convexity and Portfolio Properties", minutes:25},
+    {num:"59.1", title:"Curve-Based and Empirical Fixed-Income Risk Measures", minutes:25},
+    {num:"60.1", title:"Credit Risk", minutes:40},
+    {num:"61.1", title:"Credit Analysis for Government Issuers", minutes:10},
+    {num:"62.1", title:"Credit Analysis for Corporate Issuers", minutes:30},
+    {num:"63.1", title:"Fixed-Income Securitization", minutes:20},
+    {num:"64.1", title:"Asset-Backed Security (ABS) Instrument and Market Features", minutes:25},
+    {num:"65.1", title:"Mortgage-Backed Security (MBS) Instrument and Market Features", minutes:40}
+  ]},
+  DER:{name:"Derivatives", weightPct:"5-8%", avgWeight:6.5, readings:[
+    {num:"66.1", title:"Derivatives Markets", minutes:25},
+    {num:"67.1", title:"Forwards and Futures", minutes:10},
+    {num:"67.2", title:"Swaps and Options", minutes:30},
+    {num:"68.1", title:"Uses, Benefits, and Risks of Derivatives", minutes:20},
+    {num:"69.1", title:"Arbitrage, Replication, and Carrying Costs", minutes:20},
+    {num:"70.1", title:"Forward Contract Valuation", minutes:15},
+    {num:"71.1", title:"Futures Valuation", minutes:10},
+    {num:"72.1", title:"Swap Valuation", minutes:10},
+    {num:"73.1", title:"Option Valuation", minutes:30},
+    {num:"74.1", title:"Put-Call Parity", minutes:15},
+    {num:"75.1", title:"Binomial Model for Option Values", minutes:25}
+  ]},
+  AI:{name:"Alternative Investments", weightPct:"7-10%", avgWeight:8.5, readings:[
+    {num:"76.1", title:"Alternative Investment Structures", minutes:20},
+    {num:"77.1", title:"Performance Appraisal and Return Calculations", minutes:35},
+    {num:"78.1", title:"Private Capital", minutes:20},
+    {num:"79.1", title:"Real Estate", minutes:15},
+    {num:"79.2", title:"Infrastructure", minutes:5},
+    {num:"80.1", title:"Farmland, Timberland, and Commodities", minutes:15},
+    {num:"81.1", title:"Hedge Funds", minutes:20},
+    {num:"82.1", title:"Distributed Ledger Technology", minutes:20},
+    {num:"82.2", title:"Digital Asset Characteristics", minutes:null}
+  ]},
+  PM:{name:"Portfolio Management", weightPct:"8-12%", avgWeight:10, readings:[
+    {num:"83.1", title:"Historical Risk and Return", minutes:5},
+    {num:"83.2", title:"Risk Aversion", minutes:15},
+    {num:"83.3", title:"Portfolio Standard Deviation", minutes:15},
+    {num:"83.4", title:"The Efficient Frontier", minutes:15},
+    {num:"84.1", title:"Systematic Risk and Beta", minutes:40},
+    {num:"84.2", title:"The CAPM and the SML", minutes:45},
+    {num:"85.1", title:"Portfolio Management Process", minutes:15},
+    {num:"85.2", title:"Asset Management and Pooled Investments", minutes:15},
+    {num:"86.1", title:"Portfolio Planning and Construction", minutes:35},
+    {num:"87.1", title:"Cognitive Errors vs. Emotional Biases", minutes:30},
+    {num:"87.2", title:"Emotional Biases", minutes:20},
+    {num:"88.1", title:"Introduction to Risk Management", minutes:30}
+  ]},
+  ETH:{name:"Ethical and Professional Standards", weightPct:"15-20%", avgWeight:17.5, readings:[
+    {num:"89.1", title:"Ethics and Trust", minutes:20},
+    {num:"90.1", title:"Code and Standards", minutes:30},
+    {num:"91.1", title:"Guidance for Standards I(A) and I(B)", minutes:20},
+    {num:"91.2", title:"Guidance for Standards I(C), I(D), and I(E)", minutes:10},
+    {num:"91.3", title:"Guidance for Standard II", minutes:5},
+    {num:"91.4", title:"Guidance for Standards III(A) and III(B)", minutes:10},
+    {num:"91.5", title:"Guidance for Standards III(C), III(D), and III(E)", minutes:10},
+    {num:"91.6", title:"Guidance for Standard IV", minutes:15},
+    {num:"91.7", title:"Guidance for Standard V", minutes:15},
+    {num:"91.8", title:"Guidance for Standard VI", minutes:10},
+    {num:"91.9", title:"Guidance for Standard VII", minutes:5},
+    {num:"92.1", title:"Introduction to GIPS", minutes:10},
+    {num:"93.1", title:"Ethics Application", minutes:25}
+  ]}
+};
+const FALLBACK_MINUTES = 20;
+const READING_LOOKUP = {};
+for(const area in CURRICULUM){
+  CURRICULUM[area].readings.forEach(r=>{ READING_LOOKUP[r.num] = {title:r.title, area, minutes:r.minutes}; });
+}
+function areaOf(id){ return READING_LOOKUP[id] ? READING_LOOKUP[id].area : null; }
+const AREA_SHORT = {ETH:"Ethics", QM:"Quant", ECO:"Econ", CI:"Corp Issuers", FSA:"Fin. Stmt Analysis", EI:"Equity", FI:"Fixed Income", DER:"Derivatives", AI:"Alt. Invest.", PM:"Portfolio Mgmt"};
+
+const K_PROGRESS='study:cfa:progress', K_ACTIVITY='study:activity', K_FREEZE='study:freeze',
+      K_WRONG='study:wrong:', K_SEEDED_V2='study:seeded_v2', K_CHAT='study:chat:';
+
+let state={tab:'cfa', view:'home', areaOpen:{}, readingId:null, phase:null, selectedPathArea:null,
+  questions:[], current:0, results:[], selected:null, answered:false, reviewMode:false,
+  brief:null, error:null, finalScore:0};
+
+const el=h=>{const d=document.createElement('div');d.innerHTML=h.trim();return d.firstChild;};
+const todayStr=()=>new Date().toISOString().slice(0,10);
+async function getJSON(k,f){try{const v=localStorage.getItem(k);return v!==null?JSON.parse(v):f;}catch(e){return f;}}
+async function setJSON(k,v){try{localStorage.setItem(k, JSON.stringify(v));}catch(e){console.error('Storage write failed',e);}}
+
+function allReadingIds(){
+  const ids=[];
+  for(const area in CURRICULUM) CURRICULUM[area].readings.forEach(r=>ids.push(r.num));
+  return ids;
+}
+function readingName(id){
+  return READING_LOOKUP[id] ? READING_LOOKUP[id].title : id;
+}
+/* Mapped from what you've told me you've actually covered, against the real module numbers */
+const PRESEED_COMPLETE = [
+  // Economics — all covered
+  "12.1","12.2","12.3","13.1","14.1","14.2","15.1","15.2","16.1","17.1","18.1","18.2","19.1",
+  // Portfolio Risk and Return: Part I (historical risk/return, risk aversion, portfolio stdev, efficient frontier)
+  "83.1","83.2","83.3","83.4",
+  // Behavioral Biases of Individuals (cognitive + emotional biases)
+  "87.1","87.2",
+  // Alternative Investment Structures
+  "76.1",
+  // Fixed-Income: instrument features, cash flows and types, issuance and trading
+  "47.1","48.1","49.1",
+  // Corporate Issuers: organizational forms/investors & stakeholders, corporate governance
+  "21.1","22.1"
+];
+const PRESEED_IN_PROGRESS = [
+  "23.1" // Liquidity Measures and Management (= old "Working Capital and Liquidity", the one you'd started)
+];
+async function ensureSeeded(){
+  const seeded = await getJSON(K_SEEDED_V2,false);
+  if(seeded) return;
+  const progress = await getJSON(K_PROGRESS,{});
+  allReadingIds().forEach(id=>{ if(!progress[id]) progress[id]={status:'not_started', notes:'', wrongCount:0}; });
+  PRESEED_COMPLETE.forEach(id=>{ if(progress[id]) progress[id].status='complete'; });
+  PRESEED_IN_PROGRESS.forEach(id=>{ if(progress[id] && progress[id].status!=='complete') progress[id].status='in_progress'; });
+  await setJSON(K_PROGRESS, progress);
+  await setJSON(K_SEEDED_V2, true);
+}
+async function getProgress(){ return await getJSON(K_PROGRESS,{}); }
+async function saveProgress(p){ await setJSON(K_PROGRESS,p); }
+async function getWrongBank(id){ return await getJSON(K_WRONG+id,[]); }
+async function saveWrongBank(id,b){ await setJSON(K_WRONG+id,b); }
+async function getActivity(){ return await getJSON(K_ACTIVITY,{}); }
+async function logActivity(n, area){
+  const act = await getActivity();
+  const wasFirst = !act[todayStr()];
+  const day = act[todayStr()] || {total:0, areas:{}};
+  day.total += n;
+  if(area) day.areas[area] = (day.areas[area]||0) + n;
+  act[todayStr()] = day;
+  await setJSON(K_ACTIVITY, act);
+  if(wasFirst){
+    const y = new Date(); y.setDate(y.getDate()-1);
+    const yStr = y.toISOString().slice(0,10);
+    if(!act[yStr]){ const f = await getFreezeState(); if(!f.used) await useFreeze(); }
+  }
+}
+function weekStartStr(d){const dt=new Date(d);dt.setDate(dt.getDate()-dt.getDay());return dt.toISOString().slice(0,10);}
+async function getFreezeState(){
+  const f=await getJSON(K_FREEZE,{weekStart:null,used:false});
+  const cw=weekStartStr(new Date());
+  return f.weekStart===cw ? f : {weekStart:cw,used:false};
+}
+async function useFreeze(){ const f=await getFreezeState(); f.used=true; await setJSON(K_FREEZE,f); }
+async function computeStreak(){
+  const act=await getActivity(); const freeze=await getFreezeState();
+  let streak=0, d=new Date();
+  if(!act[todayStr()]) d.setDate(d.getDate()-1);
+  let freezeAvail=!freeze.used;
+  while(true){
+    const s=d.toISOString().slice(0,10);
+    if(act[s]&&act[s].total>0){streak++; d.setDate(d.getDate()-1);}
+    else if(freezeAvail){freezeAvail=false; d.setDate(d.getDate()-1);}
+    else break;
+  }
+  return streak;
+}
+const MILESTONES=[3,7,14,30,60,100,150,200,365];
+
+async function getChat(id){ return await getJSON(K_CHAT+id, []); }
+async function saveChat(id, msgs){ await setJSON(K_CHAT+id, msgs); }
+
+/* Points at the Claude API directly for now (works inside the claude.ai artifact sandbox).
+   Once deployed standalone, change this to your serverless proxy URL — e.g. a Cloudflare
+   Worker that holds the real API key server-side and forwards the request. Nothing else
+   in this file needs to change. */
+const API_ENDPOINT = "CLOUDFLARE_WORKER_URL"; // replaced after wrangler deploy
+
+async function callClaude(sys,user,maxTokens){
+  const resp=await fetch(API_ENDPOINT,{method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:maxTokens||1000,system:sys,messages:[{role:"user",content:user}]})});
+  const data=await resp.json();
+  const block=(data.content||[]).find(b=>b.type==='text');
+  if(!block) throw new Error('empty');
+  return block.text.trim().replace(/^```json/,'').replace(/^```/,'').replace(/```$/,'').trim();
+}
+async function generateBrief(readingId, notes, areaName){
+  const sys=`You are a CFA Level I tutor briefing a finance beginner before a practice quiz. The student has no finance background, so define things in plain English, not textbook language. Output ONLY valid JSON, no markdown fences:
+{"hook":"1-2 sentences grounding this reading in a real-world scenario a beginner can picture immediately","keywords":[{"term":"a key term used in this reading","definition":"one plain-English sentence, no jargon used to explain the jargon"}],"about":"1-2 sentences on what this reading covers, building on the hook","exam_note":"one sentence merging why the CFA tests this and the core LOS being tested","formulas":[{"name":"short name","expr":"the formula written as a valid LaTeX expression (e.g. \\\\frac{a}{b}, x^2, \\\\times), no surrounding $ signs","note":"one short line on when to use it"}],"worked_example":{"problem":"a short concrete numeric scenario using this reading's core formula","steps":["step 1 of the arithmetic","step 2","..."],"calculator":["exact BA II Plus keystroke sequence, one logical step per line"]},"diagram_svg":"a small self-contained SVG (viewBox 0 0 320 180, using currentColor) for the single most useful visual, or null if none genuinely helps"}
+keywords: 3-4 terms max. formulas: max 2, empty array if none exist (e.g. Ethics, Corporate Governance). worked_example: null if this reading involves no real calculation — only include it for genuinely computational readings (TVM, quant methods, yields, duration, portfolio math, etc), and when included keep steps to 4 max and calculator keystrokes concrete and exact. diagram_svg: null for most readings, only when a visual truly clarifies better than text. Keep every field short — this is a beginner's warm-up, not a chapter.`;
+  const user=`Topic area: ${areaName}\nReading: ${readingName(readingId)}\nStudent's notes (may be brief, extensive book excerpts, or empty — use your own CFA knowledge of this reading to fill gaps):\n${notes||"(no notes provided — use standard CFA curriculum knowledge for this reading)"}`;
+  return JSON.parse(await callClaude(sys,user,1000));
+}
+function questionCountFor(id){
+  const mins = (READING_LOOKUP[id]||{}).minutes || FALLBACK_MINUTES;
+  if(mins<=10) return 3;
+  if(mins<=20) return 5;
+  if(mins<=35) return 8;
+  return 10;
+}
+async function generateQuestions(readingId, notes, areaName, count){
+  const n = count || questionCountFor(readingId);
+  const sys=`You write CFA Level I exam-style multiple choice questions, matching the real exam's format and register exactly — including "least accurately"/"most accurately" stems, short scenario vignettes with realistic company or party names and numbers where natural, and precise technical phrasing. Output ONLY valid JSON, no markdown fences:
+{"questions":[{"stem":"the full question, including any scenario setup","choices":[{"label":"A","text":"...","correct":false,"explain":"why this option is right or wrong, one concise sentence"},{"label":"B","text":"...","correct":false,"explain":"..."},{"label":"C","text":"...","correct":false,"explain":"..."}]}]}
+Generate exactly ${n} questions grounded in the reading and notes given, at genuine CFA Level I difficulty. Exactly one choice per question has "correct":true. Vary stem style across the set: some direct ("which of the following"), some "least accurately", some short scenario/vignette-based with a named company or two parties. Every option, correct or not, gets its own one-sentence explain — this is the most important part, the student wants to know why each wrong choice is wrong, not just which one is right.`;
+  const user=`Topic area: ${areaName}\nReading: ${readingName(readingId)}\nStudent's notes:\n${notes||"(no notes provided — use standard CFA curriculum knowledge for this reading)"}`;
+  return JSON.parse(await callClaude(sys,user,1000)).questions;
+}
+async function askAboutReading(readingId, areaName, notes, history, question){
+  const sys=`You are a CFA Level I tutor helping a student while they study a specific reading. Answer their question directly and conversationally, grounded in the reading below and their own notes where relevant. Keep answers focused — a few sentences to a short paragraph unless they ask for more depth. Plain text only, no markdown headers.
+Topic area: ${areaName}
+Reading: ${readingName(readingId)}
+Student's notes on this reading:
+${notes||"(none provided)"}`;
+  const msgs = history.map(m=>({role:m.role, content:m.text}));
+  msgs.push({role:'user', content:question});
+  const resp = await fetch(API_ENDPOINT, {method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({model:"claude-sonnet-4-6", max_tokens:1000, system:sys, messages:msgs})});
+  const data = await resp.json();
+  const block = (data.content||[]).find(b=>b.type==='text');
+  if(!block) throw new Error('empty');
+  return block.text.trim();
+}
+
+function ring(pct,big,small){
+  const r=30,c=2*Math.PI*r, off=c-Math.min(Math.max(pct,0),1)*c;
+  return `<div class="ringwrap"><svg class="ring" viewBox="0 0 72 72">
+    <circle class="bg" cx="36" cy="36" r="${r}"/>
+    <circle class="fg" cx="36" cy="36" r="${r}" stroke-dasharray="${c}" stroke-dashoffset="${off}"/>
+  </svg><div class="ringlabel"><div class="big">${big}</div><div class="small">${small}</div></div></div>`;
+}
+
+async function curriculumStats(){
+  const progress = await getProgress();
+  let totalMinutes=0, remainingMinutes=0, completeCount=0, total=0;
+  const areaStats={};
+  for(const area in CURRICULUM){
+    const c=CURRICULUM[area];
+    let areaComplete=0;
+    c.readings.forEach(r=>{
+      const id=r.num; total++;
+      const mins = r.minutes || FALLBACK_MINUTES;
+      totalMinutes += mins;
+      const st = (progress[id]||{}).status || 'not_started';
+      if(st==='complete'){ completeCount++; areaComplete++; }
+      else if(st==='in_progress'){ remainingMinutes += mins*0.5; }
+      else { remainingMinutes += mins; }
+    });
+    areaStats[area] = {complete:areaComplete, total:c.readings.length};
+  }
+  const totalHours = totalMinutes/60;
+  const remainingHours = remainingMinutes/60;
+  return { remainingHours, totalHours, completeCount, total, pct: 1-(remainingHours/totalHours), areaStats };
+}
+
+async function render(){
+  await ensureSeeded();
+  const scroll=document.getElementById('scroll'); scroll.innerHTML='';
+  document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active', b.dataset.tab===state.tab));
+  if(state.tab==='today' && state.view==='home') await renderToday(scroll);
+  else if(state.tab==='cfa' && state.view==='home') await renderCFA(scroll);
+  else if(state.tab==='stats' && state.view==='home') await renderStats(scroll);
+  else if(state.view==='reading') await renderReading(scroll);
+  else if(state.view==='wrongbank') await renderWrongBank(scroll);
+  else if(state.view==='bulkimport') renderBulkImport(scroll);
+  else if(state.view==='briefLoading') scroll.appendChild(el(`<div class="card"><div class="loading"><div class="spinner"></div>Preparing your briefing…</div></div>`));
+  else if(state.view==='brief') renderBrief(scroll);
+  else if(state.view==='quizLoading') scroll.appendChild(el(`<div class="card"><div class="loading"><div class="spinner"></div>Building your questions…</div></div>`));
+  else if(state.view==='quiz') renderQuiz(scroll);
+  else if(state.view==='summary') await renderSummary(scroll);
+}
+
+async function renderToday(scroll){
+  const streak=await computeStreak(); const freeze=await getFreezeState();
+  scroll.appendChild(el(`<div class="topbar"><h1>Today</h1><div class="streakchip">${streak} DAY STREAK${!freeze.used?'<span class="freezechip">FREEZE READY</span>':''}</div></div>`));
+
+  const stats = await curriculumStats();
+  const pctDisplay = Math.round(stats.pct*100);
+  const hoursLeft = Math.max(0, Math.round(stats.remainingHours));
+  const card = el(`<div class="card">
+    ${ring(stats.pct, pctDisplay+'%', 'CFA L1 complete')}
+    <div class="hourshint">~${hoursLeft} study hours left (est., of ~${Math.round(stats.totalHours)})</div>
+    <div class="muted" style="margin-top:6px">${stats.completeCount} of ${stats.total} readings done</div>
+  </div>`);
+  scroll.appendChild(card);
+
+  // continue card: first in_progress, else first not_started, in curriculum order
+  const progress = await getProgress();
+  let nextId=null;
+  for(const id of allReadingIds()){ if((progress[id]||{}).status==='in_progress'){ nextId=id; break; } }
+  if(!nextId) for(const id of allReadingIds()){ if((progress[id]||{}).status==='not_started'){ nextId=id; break; } }
+
+  if(!state.selectedPathArea) state.selectedPathArea = nextId ? areaOf(nextId) : Object.keys(CURRICULUM)[0];
+  const selArea = state.selectedPathArea;
+
+  const chips = el(`<div class="path-chips"></div>`);
+  Object.keys(CURRICULUM).forEach(a=>{
+    const chip = el(`<div class="path-chip ${a===selArea?'active':''}">${AREA_SHORT[a]}</div>`);
+    chip.onclick = ()=>{ state.selectedPathArea = a; render(); };
+    chips.appendChild(chip);
+  });
+  scroll.appendChild(chips);
+
+  const readings = CURRICULUM[selArea].readings;
+  const chunkCount = new Set(readings.map(r=>r.num.split('.')[0])).size;
+  const wrapWidth = 320;
+  const spacing = 118, amplitude = 68, centerX = 160, startY = 60;
+  const positions = readings.map((r,i)=>{
+    const angle = (i % 8) / 8 * Math.PI * 2;
+    return { x: centerX + Math.sin(angle)*amplitude, y: startY + i*spacing, r };
+  });
+  const totalH = startY + (readings.length-1)*spacing + 55;
+
+  const pathWrap = el(`<div class="path-wrap" style="width:${wrapWidth}px;height:${totalH}px;margin-bottom:10px"></div>`);
+  let linePoints = positions.map(p=>`${p.x},${p.y}`).join(' ');
+  pathWrap.innerHTML = `<svg width="${wrapWidth}" height="${totalH}" style="position:absolute;top:0;left:0">
+    <defs><linearGradient id="pathgrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="var(--brass)"/><stop offset="100%" stop-color="var(--flame)"/>
+    </linearGradient></defs>
+    <polyline points="${linePoints}" fill="none" stroke="url(#pathgrad)" stroke-width="4" stroke-dasharray="1 14" stroke-linecap="round" opacity="0.55"/>
+  </svg>`;
+  positions.forEach((p,i)=>{
+    const st = (progress[p.r.num]||{}).status || 'not_started';
+    const content = st==='complete' ? '✓' : p.r.num;
+    const node = el(`<div class="path-node ${st}" style="left:${p.x}px;top:${p.y}px;animation-delay:${Math.min(i*35,500)}ms">${content}</div>`);
+    node.onclick = ()=>openReading(p.r.num);
+    pathWrap.appendChild(node);
+    const label = el(`<div class="path-node-label" style="left:${p.x}px;top:${p.y+38}px">${p.r.title}</div>`);
+    pathWrap.appendChild(label);
+  });
+  const pathCard = el(`<div class="card" style="overflow:hidden"><div class="eyebrow" style="margin-bottom:12px">${CURRICULUM[selArea].name} — ${chunkCount} readings — tap any module to jump in</div></div>`);
+  pathCard.appendChild(pathWrap);
+  scroll.appendChild(pathCard);
+}
+
+async function longestStreakEver(){
+  const act = await getActivity();
+  const dates = Object.keys(act).filter(d=>act[d].total>0).sort();
+  if(dates.length===0) return 0;
+  let longest=1, run=1;
+  for(let i=1;i<dates.length;i++){
+    const prev = new Date(dates[i-1]); const cur = new Date(dates[i]);
+    const diffDays = Math.round((cur-prev)/86400000);
+    if(diffDays===1){ run++; longest=Math.max(longest,run); } else { run=1; }
+  }
+  return longest;
+}
+async function renderStats(scroll){
+  scroll.appendChild(el(`<div class="topbar"><h1>Statistics</h1></div>`));
+  const act = await getActivity();
+  const streak = await computeStreak();
+  const longest = await longestStreakEver();
+  const totalQuestions = Object.values(act).reduce((s,d)=>s+(d.total||0),0);
+  const daysActive = Object.keys(act).filter(d=>act[d].total>0).length;
+
+  const statsCard = el(`<div class="card">
+    <div class="row" style="text-align:center">
+      <div style="flex:1"><div class="summary-score" style="font-size:28px">${streak}</div><div class="muted">day streak</div></div>
+      <div style="flex:1"><div class="summary-score" style="font-size:28px">${longest}</div><div class="muted">longest streak</div></div>
+    </div>
+    <div class="row" style="text-align:center;margin-top:16px">
+      <div style="flex:1"><div class="summary-score" style="font-size:22px">${totalQuestions}</div><div class="muted">questions answered</div></div>
+      <div style="flex:1"><div class="summary-score" style="font-size:22px">${daysActive}</div><div class="muted">days studied</div></div>
+    </div>
+  </div>`);
+  scroll.appendChild(statsCard);
+
+  const areaCodes = Object.keys(CURRICULUM);
+  const numDays = 14;
+  const dayDates = [];
+  for(let i=numDays-1;i>=0;i--){ const dt=new Date(); dt.setDate(dt.getDate()-i); dayDates.push(dt); }
+
+  const heatCard = el(`<div class="card"><div class="eyebrow" style="margin-bottom:12px">Subject heatmap — last 14 days</div></div>`);
+  const grid = el(`<div class="subheat"></div>`);
+  const headerRow = el(`<div class="subheat-row"><div class="subheat-label"></div><div class="subheat-cells" id="hdrcells"></div></div>`);
+  const headerCells = headerRow.querySelector('#hdrcells');
+  dayDates.forEach(dt=>{
+    const initial = ['S','M','T','W','T','F','S'][dt.getDay()];
+    headerCells.appendChild(el(`<div style="width:15px;height:15px;flex-shrink:0;font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--parchment-dim);display:flex;align-items:center;justify-content:center">${initial}</div>`));
+  });
+  grid.appendChild(headerRow);
+  areaCodes.forEach(area=>{
+    const row = el(`<div class="subheat-row"></div>`);
+    row.appendChild(el(`<div class="subheat-label">${area}</div>`));
+    const cells = el(`<div class="subheat-cells"></div>`);
+    dayDates.forEach(dt=>{
+      const dstr = dt.toISOString().slice(0,10);
+      const count = ((act[dstr]||{}).areas||{})[area] || 0;
+      let cls='subheat-cell';
+      if(count>0&&count<10) cls+=' l1'; else if(count>=10&&count<20) cls+=' l2'; else if(count>=20&&count<30) cls+=' l3'; else if(count>=30) cls+=' l4';
+      cells.appendChild(el(`<div class="${cls}" title="${CURRICULUM[area].name}: ${count} questions on ${dstr}"></div>`));
+    });
+    row.appendChild(cells);
+    grid.appendChild(row);
+  });
+  heatCard.appendChild(grid);
+  heatCard.appendChild(el(`<div class="subheat-legend">Less<div class="subheat-cell"></div><div class="subheat-cell l1"></div><div class="subheat-cell l2"></div><div class="subheat-cell l3"></div><div class="subheat-cell l4"></div>More</div>`));
+  scroll.appendChild(heatCard);
+}
+
+async function renderCFA(scroll){
+  scroll.appendChild(el(`<div class="topbar"><h1>CFA Level I</h1></div>`));
+  const importBtn = el(`<button class="btn secondary" style="margin-bottom:14px">Bulk import notes</button>`);
+  importBtn.onclick = ()=>{ state.view='bulkimport'; render(); };
+  scroll.appendChild(importBtn);
+  const progress = await getProgress();
+  const card = el(`<div class="card"></div>`);
+  for(const area in CURRICULUM){
+    const c = CURRICULUM[area];
+    const completeCount = c.readings.filter(r=>(progress[r.num]||{}).status==='complete').length;
+    const pct = completeCount/c.readings.length*100;
+    const isOpen = !!state.areaOpen[area];
+    // group by the natural reading number (the integer before the decimal) so a long
+    // module list reads as a handful of readings instead of one flat wall of items
+    const chunks = [];
+    c.readings.forEach(r=>{
+      const readingNum = r.num.split('.')[0];
+      let chunk = chunks[chunks.length-1];
+      if(!chunk || chunk.readingNum!==readingNum){ chunk = {readingNum, items:[]}; chunks.push(chunk); }
+      chunk.items.push(r);
+    });
+    const areaEl = el(`<div class="area">
+      <div class="area-head" data-area="${area}">
+        <div><div class="name">${c.name}</div><div class="meta">${completeCount}/${c.readings.length} · ${chunks.length} readings · exam weight ${c.weightPct}</div>
+          <div class="area-progress"><div class="fill" style="width:${pct}%"></div></div></div>
+        <span class="chevron ${isOpen?'open':''}">›</span>
+      </div>
+      <div class="reading-list ${isOpen?'open':''}" id="list-${area}"></div>
+    </div>`);
+    const list = areaEl.querySelector(`#list-${area}`);
+    chunks.forEach(chunk=>{
+      const chunkComplete = chunk.items.filter(r=>(progress[r.num]||{}).status==='complete').length;
+      if(chunks.length>1){
+        list.appendChild(el(`<div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--brass-dim);margin:14px 0 4px;padding-left:8px">Reading ${chunk.readingNum} · ${chunkComplete}/${chunk.items.length}</div>`));
+      }
+      chunk.items.forEach(r=>{
+        const id = r.num;
+        const st = (progress[id]||{}).status||'not_started';
+        const hasNotes = !!((progress[id]||{}).notes||'').trim();
+        const item = el(`<div class="reading-item" data-id="${id}">
+          <div class="rname"><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--parchment-dim);margin-right:6px">${id}</span>${r.title}${hasNotes?' <span class="pill" style="background:rgba(6,182,160,.12);color:var(--brass-dim)">NOTES</span>':''}</div><span class="pill ${st}">${st.replace('_',' ')}</span>
+        </div>`);
+        item.onclick = (e)=>{ e.stopPropagation(); openReading(id); };
+        list.appendChild(item);
+      });
+    });
+    areaEl.querySelector('.area-head').onclick = ()=>{
+      state.areaOpen[area] = !state.areaOpen[area];
+      render();
+    };
+    card.appendChild(areaEl);
+  }
+  scroll.appendChild(card);
+}
+
+async function openReading(id){
+  state.readingId = id; state.view='reading'; render();
+}
+
+function renderBulkImport(scroll){
+  const back = el(`<div class="backlink">‹ Back</div>`);
+  back.onclick = ()=>{ state.view='home'; render(); };
+  scroll.appendChild(back);
+  scroll.appendChild(el(`<div class="eyebrow">Bulk import</div><h1 style="margin:6px 0 14px;font-size:20px">Paste notes for several readings at once</h1>`));
+  scroll.appendChild(el(`<div class="card">
+    <div class="muted" style="margin-bottom:14px">Mark the start of each reading with its module number on its own line, like <strong>## 27.1</strong> (extra words after the number are fine, e.g. "27.1 Key Concepts"). If you paste a whole-reading summary under just the reading number with no decimal — like <strong>## 28 Key Concepts</strong> — it applies to every sub-module under that reading automatically (28.1 through 28.5, etc). If a reading already has notes, it won't be touched — you'll get a one-click option to clear and replace it instead. This all stays in your browser; nothing is sent anywhere except when you actually start a lesson.</div>
+    <label>Reading IDs, for reference</label>
+    <div class="muted" style="margin-bottom:14px;max-height:120px;overflow-y:auto;font-family:'IBM Plex Mono',monospace;font-size:11px">${Object.keys(CURRICULUM).map(a=>`${CURRICULUM[a].name}: ${CURRICULUM[a].readings.map(r=>r.num).join(', ')}`).join('<br>')}</div>
+    <label>Paste here</label>
+    <textarea id="bulkInput" style="min-height:280px" placeholder="## 27.1
+(paste that reading's content here)
+
+## 28.1
+(paste that reading's content here)"></textarea>
+    <div style="height:14px"></div>
+    <button class="btn" id="bulkSaveBtn">Save to readings</button>
+    <div id="bulkResult" style="margin-top:12px"></div>
+  </div>`));
+  document.getElementById('bulkSaveBtn').onclick = async ()=>{
+    const raw = document.getElementById('bulkInput').value;
+    const allIds = allReadingIds();
+    const parts = raw.split(/^##\s*/m).map(s=>s.trim()).filter(Boolean);
+    const progress = await getProgress();
+
+    const targets = {}; // id -> array of {label, body}
+    const unmatched = [];
+    const addTarget = (id, label, body)=>{ targets[id] = targets[id]||[]; targets[id].push({label, body}); };
+
+    parts.forEach(part=>{
+      const firstLineEnd = part.indexOf('\n');
+      const idLineRaw = (firstLineEnd===-1 ? part : part.slice(0,firstLineEnd)).trim();
+      const body = (firstLineEnd===-1 ? '' : part.slice(firstLineEnd+1)).trim();
+      if(!body){ if(idLineRaw) unmatched.push(idLineRaw); return; }
+      const m = idLineRaw.match(/^(\d+(?:\.\d+)?)/);
+      if(!m){ unmatched.push(idLineRaw); return; }
+      const token = m[1];
+      if(allIds.includes(token)){
+        addTarget(token, null, body);
+      } else if(!token.includes('.')){
+        const matches = allIds.filter(id=>id.split('.')[0]===token);
+        if(matches.length>0) matches.forEach(id=>addTarget(id, `Reading ${token} key concepts`, body));
+        else unmatched.push(idLineRaw);
+      } else {
+        unmatched.push(idLineRaw);
+      }
+    });
+
+    const saved = [];
+    const conflicts = [];
+    for(const id in targets){
+      const combined = targets[id].map(b=> b.label ? `[${b.label}]\n${b.body}` : b.body).join('\n\n');
+      const existing = ((progress[id]||{}).notes||'').trim();
+      if(existing){
+        conflicts.push({id, pendingBody: combined});
+      } else {
+        progress[id] = progress[id] || {status:'not_started', notes:'', wrongCount:0};
+        progress[id].notes = combined;
+        if(progress[id].status==='not_started') progress[id].status='in_progress';
+        saved.push(id);
+      }
+    }
+    await saveProgress(progress);
+
+    const resultEl = document.getElementById('bulkResult');
+    resultEl.innerHTML = '';
+    if(saved.length>0) resultEl.appendChild(el(`<div class="muted" style="margin-bottom:8px">Saved: ${saved.join(', ')}</div>`));
+    if(unmatched.length>0) resultEl.appendChild(el(`<div class="muted" style="margin-bottom:8px">Didn't recognize: ${unmatched.join(', ')}</div>`));
+    if(conflicts.length>0){
+      resultEl.appendChild(el(`<div class="muted" style="margin-bottom:8px">Already has notes — nothing changed. Clear to replace:</div>`));
+      conflicts.forEach(c=>{
+        const row = el(`<div class="row" style="margin-bottom:8px;align-items:center">
+          <span class="pill in_progress" style="flex-shrink:0">${c.id}</span>
+          <button class="btn small secondary" style="flex:1">Clear existing &amp; save new</button>
+        </div>`);
+        row.querySelector('button').onclick = async ()=>{
+          const fresh = await getProgress();
+          fresh[c.id] = fresh[c.id] || {status:'not_started', notes:'', wrongCount:0};
+          fresh[c.id].notes = c.pendingBody;
+          if(fresh[c.id].status==='not_started') fresh[c.id].status='in_progress';
+          await saveProgress(fresh);
+          row.outerHTML = `<div class="muted" style="margin-bottom:6px">✓ ${c.id} updated</div>`;
+        };
+        resultEl.appendChild(row);
+      });
+    }
+    if(saved.length===0 && unmatched.length===0 && conflicts.length===0){
+      resultEl.textContent = 'Nothing to save — check the ## ID markers match the list above.';
+    }
+  };
+}
+
+async function renderReading(scroll){
+  const id = state.readingId;
+  const area = areaOf(id);
+  const c = CURRICULUM[area];
+  const progress = await getProgress();
+  const entry = progress[id] || {status:'not_started', notes:'', wrongCount:0};
+
+  const back = el(`<div class="backlink">‹ Back</div>`);
+  back.onclick = ()=>{ state.view='home'; state.tab='cfa'; render(); };
+  scroll.appendChild(back);
+  const hasNotesNow = !!(entry.notes||'').trim();
+  scroll.appendChild(el(`<div class="eyebrow">${c.name}</div><h1 style="margin:6px 0 10px;font-size:20px">${readingName(id)}</h1>${hasNotesNow ? `<span class="pill" style="background:rgba(6,182,160,.12);color:var(--brass-dim);margin-bottom:8px;display:inline-block">NOTES ADDED</span>` : ''}`));
+  scroll.appendChild(el(`<div style="height:14px"></div>`));
+
+  const card = el(`<div class="card">
+    <label>Status</label>
+    <div class="statuspills">
+      <div class="statuspill not_started ${entry.status==='not_started'?'active not_started':''}" data-st="not_started">Not started</div>
+      <div class="statuspill in_progress ${entry.status==='in_progress'?'active in_progress':''}" data-st="in_progress">In progress</div>
+      <div class="statuspill complete ${entry.status==='complete'?'active complete':''}" data-st="complete">Complete</div>
+    </div>
+    <label>Your notes / book content (optional — grounds the briefing, questions, and chat)</label>
+    <textarea id="notesInput" placeholder="Paste your notes, book excerpts, or full reading text here, or leave blank to use standard CFA knowledge" style="min-height:160px">${entry.notes||''}</textarea>
+    <div style="height:14px"></div>
+    <button class="btn" id="startBtn">Start lesson (brief + ${questionCountFor(id)} questions)</button>
+    ${entry.wrongCount>0 ? `<div style="height:10px"></div><button class="btn secondary" id="reviewBtn">Review ${entry.wrongCount} wrong answers</button>
+    <div style="height:10px"></div><button class="btn secondary" id="viewBankBtn">View wrong answers bank</button>` : ''}
+  </div>`);
+  scroll.appendChild(card);
+
+  card.querySelectorAll('.statuspill').forEach(p=>{
+    p.onclick = async ()=>{
+      const st = p.getAttribute('data-st');
+      const prog = await getProgress();
+      prog[id] = prog[id] || {status:'not_started', notes:'', wrongCount:0};
+      prog[id].status = st;
+      await saveProgress(prog);
+      render();
+    };
+  });
+  document.getElementById('startBtn').onclick = async ()=>{
+    const notes = document.getElementById('notesInput').value.trim();
+    const prog = await getProgress();
+    prog[id] = prog[id] || {status:'not_started', notes:'', wrongCount:0};
+    prog[id].notes = notes;
+    if(prog[id].status==='not_started') prog[id].status='in_progress';
+    await saveProgress(prog);
+    startLesson(id, notes, c.name);
+  };
+  const reviewBtn = document.getElementById('reviewBtn');
+  if(reviewBtn) reviewBtn.onclick = ()=> startQuizFromBank(id, c.name);
+  const viewBankBtn = document.getElementById('viewBankBtn');
+  if(viewBankBtn) viewBankBtn.onclick = ()=> { state.view='wrongbank'; render(); };
+
+  // Ask Claude box
+  const chat = await getChat(id);
+  const chatCard = el(`<div class="card">
+    <div class="eyebrow" style="margin-bottom:12px">Ask Claude about this reading</div>
+    <div class="chat-msgs" id="chatMsgs"></div>
+    <div class="chat-input-row">
+      <input type="text" id="chatInput" placeholder="Ask anything about ${readingName(id)}"/>
+      <button class="btn" id="chatSendBtn">Ask</button>
+    </div>
+  </div>`);
+  scroll.appendChild(chatCard);
+  const msgsEl = chatCard.querySelector('#chatMsgs');
+  if(chat.length===0){
+    msgsEl.appendChild(el(`<div class="chat-empty">No questions yet — ask about anything in this reading, your notes are already in context.</div>`));
+  } else {
+    chat.forEach(m=>{ msgsEl.appendChild(el(`<div class="chat-msg ${m.role==='user'?'user':'assistant'}">${m.text}</div>`)); });
+    msgsEl.scrollTop = msgsEl.scrollHeight;
+  }
+  const sendBtn = chatCard.querySelector('#chatSendBtn');
+  const chatInput = chatCard.querySelector('#chatInput');
+  const doSend = async ()=>{
+    const q = chatInput.value.trim();
+    if(!q) return;
+    const history = await getChat(id);
+    history.push({role:'user', text:q});
+    await saveChat(id, history);
+    chatInput.value='';
+    sendBtn.disabled = true; sendBtn.textContent='…';
+    msgsEl.appendChild(el(`<div class="chat-msg user">${q}</div>`));
+    msgsEl.scrollTop = msgsEl.scrollHeight;
+    try{
+      const notesNow = (await getProgress())[id]?.notes || '';
+      const answer = await askAboutReading(id, c.name, notesNow, history.slice(0,-1), q);
+      const h2 = await getChat(id);
+      h2.push({role:'assistant', text:answer});
+      await saveChat(id, h2);
+      msgsEl.appendChild(el(`<div class="chat-msg assistant">${answer}</div>`));
+      msgsEl.scrollTop = msgsEl.scrollHeight;
+    }catch(e){
+      msgsEl.appendChild(el(`<div class="chat-msg assistant">Couldn't get an answer just then — try again.</div>`));
+    }
+    sendBtn.disabled=false; sendBtn.textContent='Ask';
+  };
+  sendBtn.onclick = doSend;
+  chatInput.onkeydown = (e)=>{ if(e.key==='Enter') doSend(); };
+}
+
+async function startLesson(id, notes, areaName){
+  state.view='briefLoading'; render();
+  try{
+    state.brief = await generateBrief(id, notes, areaName);
+    state.view='brief'; state.reviewMode=false;
+  }catch(e){ state.error='Could not generate the briefing — try again.'; state.view='reading'; }
+  render();
+}
+
+function renderBrief(scroll){
+  const b=state.brief; const id=state.readingId; const area=areaOf(id);
+  const back = el(`<div class="backlink">‹ Back</div>`);
+  back.onclick = ()=>{ state.view='reading'; render(); };
+  scroll.appendChild(back);
+  scroll.appendChild(el(`<div class="eyebrow">Before you start</div><h1 style="margin:6px 0 18px;font-size:19px">${readingName(id)}</h1>`));
+
+  const hookCard = el(`<div class="card">
+    <p style="font-size:15px;line-height:1.6;margin:0">${b.hook}</p>
+  </div>`);
+  scroll.appendChild(hookCard);
+
+  if(b.keywords && b.keywords.length>0){
+    const kwCard = el(`<div class="card"><div class="eyebrow" style="margin-bottom:12px">Keywords, in plain English</div></div>`);
+    b.keywords.forEach(k=>{
+      kwCard.appendChild(el(`<div style="margin-bottom:12px">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--sky);margin-bottom:3px">${k.term}</div>
+        <div style="font-size:13.5px;line-height:1.5">${k.definition}</div>
+      </div>`));
+    });
+    scroll.appendChild(kwCard);
+  }
+
+  const aboutCard = el(`<div class="card">
+    <div class="brief-block" style="margin-bottom:12px"><div class="lbl">What it's about</div><p>${b.about}</p></div>
+    <div class="brief-block" style="margin-bottom:0"><div class="lbl">Why it's on the exam</div><p>${b.exam_note}</p></div>
+  </div>`);
+  scroll.appendChild(aboutCard);
+
+  if(b.diagram_svg){
+    const diagCard = el(`<div class="card" style="text-align:center"><div class="eyebrow" style="margin-bottom:12px;text-align:left">The key visual</div></div>`);
+    const wrap = el(`<div style="color:var(--brass)"></div>`);
+    wrap.innerHTML = b.diagram_svg;
+    const svgEl = wrap.querySelector('svg');
+    if(svgEl){ svgEl.style.width='100%'; svgEl.style.height='auto'; svgEl.style.color='var(--brass)'; diagCard.appendChild(wrap); scroll.appendChild(diagCard); }
+  }
+
+  if(b.formulas && b.formulas.length>0){
+    const fCard = el(`<div class="card"><div class="eyebrow" style="margin-bottom:12px">Formulas to have ready</div></div>`);
+    b.formulas.forEach(f=>{
+      const block = el(`<div style="margin-bottom:14px">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--sky);margin-bottom:6px">${f.name}</div>
+        <div class="formula-render" style="font-size:16px;margin-bottom:6px"></div>
+        <div class="muted">${f.note}</div>
+      </div>`);
+      const target = block.querySelector('.formula-render');
+      try{
+        if(window.katex){ window.katex.render(f.expr, target, {throwOnError:false, displayMode:false}); }
+        else { target.textContent = f.expr; target.style.fontFamily = "'IBM Plex Mono',monospace"; }
+      }catch(e){ target.textContent = f.expr; target.style.fontFamily = "'IBM Plex Mono',monospace"; }
+      fCard.appendChild(block);
+    });
+    scroll.appendChild(fCard);
+  }
+
+  if(b.worked_example){
+    const w = b.worked_example;
+    const weCard = el(`<div class="card"><div class="eyebrow" style="margin-bottom:12px">Worked example</div></div>`);
+    weCard.appendChild(el(`<p style="font-size:13.5px;line-height:1.55;margin-bottom:14px">${w.problem}</p>`));
+    if(w.steps && w.steps.length>0){
+      const stepsWrap = el(`<div style="margin-bottom:14px"></div>`);
+      w.steps.forEach((s,i)=>{ stepsWrap.appendChild(el(`<div class="muted" style="margin-bottom:6px">${i+1}. ${s}</div>`)); });
+      weCard.appendChild(stepsWrap);
+    }
+    if(w.calculator && w.calculator.length>0){
+      weCard.appendChild(el(`<div class="lbl" style="margin-bottom:8px">BA II Plus keystrokes</div>`));
+      const calcWrap = el(`<div style="background:var(--slate-2);border:1px solid var(--rule);border-radius:8px;padding:12px 14px"></div>`);
+      w.calculator.forEach(line=>{ calcWrap.appendChild(el(`<div style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--sage);margin-bottom:4px">${line}</div>`)); });
+      weCard.appendChild(calcWrap);
+    }
+    scroll.appendChild(weCard);
+  }
+
+  const btn = el(`<button class="btn">Start ${questionCountFor(id)} questions</button>`);
+  btn.onclick = async ()=>{
+    state.view='quizLoading'; render();
+    try{
+      const progress = await getProgress();
+      const notes = (progress[id]||{}).notes||'';
+      state.questions = await generateQuestions(id, notes, CURRICULUM[area].name);
+      state.current=0; state.results=[]; state.selected=null; state.answered=false; state.reviewMode=false;
+      state.view='quiz';
+    }catch(e){ state.error='Could not generate questions — try again.'; state.view='reading'; }
+    render();
+  };
+  scroll.appendChild(btn);
+}
+
+async function startQuizFromBank(id, areaName){
+  state.readingId=id; state.reviewMode=true; state.view='quizLoading'; render();
+  const bank = await getWrongBank(id);
+  state.questions = bank.map(w=>({stem:w.stem, choices:w.choices}));
+  state.current=0; state.results=[]; state.selected=null; state.answered=false;
+  state.view='quiz'; render();
+}
+
+function renderQuiz(scroll){
+  const q=state.questions[state.current]; const total=state.questions.length;
+  const ticks = state.questions.map((_,i)=>{
+    let cls='tick';
+    if(i<state.current) cls+= state.results[i].correct?' correct':' wrong';
+    else if(i===state.current) cls+=' current';
+    return `<div class="${cls}"></div>`;
+  }).join('');
+  const optsHtml = q.choices.map(c=>`<div class="opt" data-label="${c.label}"><strong>${c.label})</strong> ${c.text}</div>`).join('');
+  const card = el(`<div class="card">
+    <div class="ledger">${ticks}</div>
+    <div class="qcount">${state.reviewMode?'REVIEW · ':''}Q${state.current+1} / ${total}</div>
+    <div class="question">${q.stem}</div>
+    <div class="options">${optsHtml}</div>
+    <div id="feedback"></div>
+    <div id="nextRow" style="display:none;margin-top:8px"><button class="btn" id="nextBtn"></button></div>
+  </div>`);
+  scroll.appendChild(card);
+  if(state.answered) showAnswered(card,q);
+  else card.querySelectorAll('.opt').forEach(o=>{ o.onclick=()=>answerQuestion(o.getAttribute('data-label')); });
+
+  renderQuizAsk(scroll, q);
+}
+
+function renderQuizAsk(scroll, q){
+  const toggle = el(`<div class="backlink" id="askToggle" style="margin-bottom:14px">Stuck on this? Ask Claude</div>`);
+  scroll.appendChild(toggle);
+  const panel = el(`<div class="card" style="display:none" id="askPanel">
+    <div class="chat-msgs" id="quizChatMsgs"></div>
+    <div class="chat-input-row"><input type="text" id="quizChatInput" placeholder="Ask about this question or the reading"/><button class="btn" id="quizChatSend">Ask</button></div>
+  </div>`);
+  scroll.appendChild(panel);
+  let open = false;
+  toggle.onclick = async ()=>{
+    open = !open;
+    panel.style.display = open ? 'block' : 'none';
+    if(open){
+      const id = state.readingId;
+      const history = await getChat(id);
+      const msgsEl = panel.querySelector('#quizChatMsgs');
+      msgsEl.innerHTML='';
+      if(history.length===0) msgsEl.appendChild(el(`<div class="chat-empty">Ask about this question, the reading, or anything unclear.</div>`));
+      else history.forEach(m=>{ msgsEl.appendChild(el(`<div class="chat-msg ${m.role==='user'?'user':'assistant'}">${m.text}</div>`)); });
+      msgsEl.scrollTop = msgsEl.scrollHeight;
+    }
+  };
+  const sendBtn = panel.querySelector('#quizChatSend');
+  const input = panel.querySelector('#quizChatInput');
+  const doSend = async ()=>{
+    const question = input.value.trim();
+    if(!question) return;
+    const id = state.readingId;
+    const area = areaOf(id);
+    const msgsEl = panel.querySelector('#quizChatMsgs');
+    const history = await getChat(id);
+    history.push({role:'user', text: `(While on quiz question: "${q.stem}") ${question}`});
+    await saveChat(id, history);
+    input.value='';
+    sendBtn.disabled=true; sendBtn.textContent='…';
+    msgsEl.appendChild(el(`<div class="chat-msg user">${question}</div>`));
+    msgsEl.scrollTop = msgsEl.scrollHeight;
+    try{
+      const notesNow = (await getProgress())[id]?.notes || '';
+      const answer = await askAboutReading(id, CURRICULUM[area].name, notesNow, history.slice(0,-1), history[history.length-1].text);
+      const h2 = await getChat(id);
+      h2.push({role:'assistant', text:answer});
+      await saveChat(id, h2);
+      msgsEl.appendChild(el(`<div class="chat-msg assistant">${answer}</div>`));
+      msgsEl.scrollTop = msgsEl.scrollHeight;
+    }catch(e){
+      msgsEl.appendChild(el(`<div class="chat-msg assistant">Couldn't get an answer just then — try again.</div>`));
+    }
+    sendBtn.disabled=false; sendBtn.textContent='Ask';
+  };
+  sendBtn.onclick = doSend;
+  input.onkeydown = (e)=>{ if(e.key==='Enter') doSend(); };
+}
+function answerQuestion(label){
+  const q=state.questions[state.current];
+  const correct = q.choices.find(c=>c.label===label).correct;
+  state.results[state.current]={correct};
+  state.selected=label; state.answered=true; render();
+}
+function showAnswered(card,q){
+  card.querySelectorAll('.opt').forEach(o=>{
+    const label = o.getAttribute('data-label');
+    const choice = q.choices.find(c=>c.label===label);
+    if(choice.correct) o.classList.add('correct');
+    else if(label===state.selected) o.classList.add('wrong');
+  });
+  const correct = state.results[state.current].correct;
+  const explainHtml = q.choices.map(c=>`
+    <div style="margin-bottom:10px">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:${c.correct?'var(--sage)':'var(--clay)'}">${c.label}${c.correct?' — correct':''}</span>
+      <div class="explain" style="margin-bottom:0">${c.explain}</div>
+    </div>`).join('');
+  card.querySelector('#feedback').innerHTML = `<div class="verdict ${correct?'correct':'wrong'}">${correct?'Correct':'Incorrect'}</div>${explainHtml}`;
+  const nextRow = card.querySelector('#nextRow'); nextRow.style.display='block';
+  const nextBtn = card.querySelector('#nextBtn');
+  nextBtn.textContent = state.current+1<state.questions.length ? 'Next':'Finish';
+  nextBtn.onclick = async ()=>{
+    const id = state.readingId;
+    if(!correct && !state.reviewMode){
+      const bank = await getWrongBank(id);
+      bank.push({stem:q.stem, choices:q.choices});
+      await saveWrongBank(id,bank);
+    }
+    if(correct && state.reviewMode){
+      const bank = await getWrongBank(id);
+      await saveWrongBank(id, bank.filter(w=>w.stem!==q.stem));
+    }
+    if(state.current+1<state.questions.length){ state.current++; state.selected=null; state.answered=false; render(); }
+    else await finishLesson();
+  };
+}
+async function finishLesson(){
+  const id = state.readingId;
+  const score = state.results.filter(r=>r.correct).length;
+  await logActivity(state.questions.length, areaOf(id));
+  const bank = await getWrongBank(id);
+  const progress = await getProgress();
+  progress[id] = progress[id] || {status:'in_progress', notes:'', wrongCount:0};
+  progress[id].wrongCount = bank.length;
+  if(!state.reviewMode && bank.length===0) progress[id].status='complete';
+  await saveProgress(progress);
+  state.finalScore = score; state.view='summary'; render();
+}
+async function findNextReading(afterId){
+  const progress = await getProgress();
+  const ids = allReadingIds();
+  const startIdx = afterId ? ids.indexOf(afterId)+1 : 0;
+  for(let i=startIdx;i<ids.length;i++){
+    const st=(progress[ids[i]]||{}).status;
+    if(st!=='complete') return ids[i];
+  }
+  for(let i=0;i<startIdx;i++){
+    const st=(progress[ids[i]]||{}).status;
+    if(st!=='complete') return ids[i];
+  }
+  return null;
+}
+
+async function renderSummary(scroll){
+  const total = state.questions.length;
+  const id = state.readingId;
+  const bank = await getWrongBank(id);
+  const streak = await computeStreak();
+  if(MILESTONES.includes(streak)){
+    scroll.appendChild(el(`<div class="celebrate"><div class="big">${streak}-day streak</div><div class="small">That's a real run — keep it going</div></div>`));
+  }
+  scroll.appendChild(el(`<div class="card" style="text-align:center;padding:32px 20px">
+    <div class="summary-score">${state.finalScore}/${total}</div>
+    <div class="summary-label">${readingName(id)}${state.reviewMode?' — review round':''}</div>
+  </div>`));
+  if(bank.length>0){
+    const exportBtn = el(`<button class="btn secondary" style="margin-bottom:10px">Export ${bank.length} wrong answers to Anki</button>`);
+    exportBtn.onclick = ()=>exportAnki(id, bank);
+    scroll.appendChild(exportBtn);
+  }
+
+  const nextId = await findNextReading(id);
+  if(nextId){
+    const keepGoingBtn = el(`<button class="btn" style="margin-bottom:10px">Keep going → ${readingName(nextId)}</button>`);
+    keepGoingBtn.onclick = ()=>{ state.readingId = nextId; state.view='reading'; render(); };
+    scroll.appendChild(keepGoingBtn);
+  }
+  const backBtn = el(`<button class="btn secondary">Back to CFA</button>`);
+  backBtn.onclick = ()=>{ state.view='home'; state.tab='cfa'; render(); };
+  scroll.appendChild(backBtn);
+}
+async function renderWrongBank(scroll){
+  const id = state.readingId;
+  const area = areaOf(id);
+  const bank = await getWrongBank(id);
+  const back = el(`<div class="backlink">‹ Back</div>`);
+  back.onclick = ()=>{ state.view='reading'; render(); };
+  scroll.appendChild(back);
+  scroll.appendChild(el(`<div class="eyebrow">Wrong answers bank</div><h1 style="margin:6px 0 18px;font-size:19px">${readingName(id)}</h1>`));
+
+  if(bank.length===0){
+    scroll.appendChild(el(`<div class="card"><div class="muted">Nothing cached here — this fills up automatically whenever you miss a question in a lesson.</div></div>`));
+    return;
+  }
+
+  const actions = el(`<div class="row" style="margin-bottom:16px">
+    <button class="btn small secondary" id="practiceBtn" style="flex:1">Practice these ${bank.length}</button>
+    <button class="btn small secondary" id="exportBtn2" style="flex:1">Export to Anki</button>
+  </div>`);
+  scroll.appendChild(actions);
+  document.getElementById('practiceBtn').onclick = ()=> startQuizFromBank(id, CURRICULUM[area].name);
+  document.getElementById('exportBtn2').onclick = ()=> exportAnki(id, bank);
+
+  bank.forEach((w, idx)=>{
+    const card = el(`<div class="card"></div>`);
+    card.appendChild(el(`<div class="question" style="font-size:15px;margin-bottom:14px">${w.stem}</div>`));
+    w.choices.forEach(c=>{
+      card.appendChild(el(`<div style="margin-bottom:10px">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:${c.correct?'var(--sage)':'var(--parchment-dim)'}">${c.label}) ${c.text}${c.correct?' — correct':''}</span>
+        <div class="explain" style="margin-bottom:0;margin-top:2px">${c.explain}</div>
+      </div>`));
+    });
+    const removeBtn = el(`<button class="btn secondary small">Remove from bank</button>`);
+    removeBtn.onclick = async ()=>{
+      const fresh = await getWrongBank(id);
+      const filtered = fresh.filter((_,i2)=>i2!==idx);
+      await saveWrongBank(id, filtered);
+      const progress = await getProgress();
+      if(progress[id]){ progress[id].wrongCount = filtered.length; await saveProgress(progress); }
+      render();
+    };
+    card.appendChild(removeBtn);
+    scroll.appendChild(card);
+  });
+}
+
+function exportAnki(id, bank){
+  const lines = bank.map(w=>{
+    const front = w.stem.replace(/\t/g,' ').replace(/\n/g,' ');
+    const correctChoice = w.choices.find(c=>c.correct);
+    const back = `${correctChoice.label}) ${correctChoice.text} — ${correctChoice.explain}`.replace(/\t/g,' ').replace(/\n/g,' ');
+    return `${front}\t${back}`;
+  });
+  const blob = new Blob([lines.join('\n')], {type:'text/plain'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download=`cfa-${id}-anki.txt`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+document.querySelectorAll('.navbtn').forEach(b=>{ b.onclick=()=>{ state.tab=b.dataset.tab; state.view='home'; render(); }; });
+render();
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(console.warn);
+}
+</script>
