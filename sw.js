@@ -1,5 +1,5 @@
 const CACHE = "cfa-hub-v1";
-const PRECACHE = ["/", "/index.html", "/manifest.json", "/icons/icon.svg"];
+const PRECACHE = ["./", "./index.html", "./manifest.json", "./icons/icon.svg"];
 
 self.addEventListener("install", e =>
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(PRECACHE)))

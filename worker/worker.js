@@ -8,7 +8,7 @@ export default {
     if (request.method === "OPTIONS") {
       return new Response(null, {
         headers: {
-          "Access-Control-Allow-Origin": "*", // tighten to your GitHub Pages origin once deployed
+          "Access-Control-Allow-Origin": "https://ahmedshehata2002.github.io",
           "Access-Control-Allow-Methods": "POST, OPTIONS",
           "Access-Control-Allow-Headers": "Content-Type",
         },
@@ -37,7 +37,7 @@ export default {
       status: upstream.status,
       headers: {
         "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*", // tighten to your GitHub Pages origin once deployed
+        "Access-Control-Allow-Origin": "https://ahmedshehata2002.github.io",
       },
     });
   },

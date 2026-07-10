@@ -431,7 +431,7 @@ async function saveChat(id, msgs){ await setJSON(K_CHAT+id, msgs); }
    Once deployed standalone, change this to your serverless proxy URL — e.g. a Cloudflare
    Worker that holds the real API key server-side and forwards the request. Nothing else
    in this file needs to change. */
-const API_ENDPOINT = "CLOUDFLARE_WORKER_URL"; // replaced after wrangler deploy
+const API_ENDPOINT = "https://cfa-study-hub.ahmed1979fcb.workers.dev";
 
 async function callClaude(sys,user,maxTokens){
   const resp=await fetch(API_ENDPOINT,{method:"POST",
@@ -1246,6 +1246,6 @@ document.querySelectorAll('.navbtn').forEach(b=>{ b.onclick=()=>{ state.tab=b.da
 render();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js').catch(console.warn);
+  navigator.serviceWorker.register('./sw.js').catch(console.warn);
 }
 </script>
