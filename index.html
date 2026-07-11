@@ -845,6 +845,7 @@ async function renderReading(scroll){
   const hasNotesNow = !!(entry.notes||'').trim();
   scroll.appendChild(el(`<div class="eyebrow">${c.name}</div><h1 style="margin:6px 0 10px;font-size:20px">${readingName(id)}</h1>${hasNotesNow ? `<span class="pill" style="background:rgba(6,182,160,.12);color:var(--brass-dim);margin-bottom:8px;display:inline-block">NOTES ADDED</span>` : ''}`));
   scroll.appendChild(el(`<div style="height:14px"></div>`));
+  if(state.error){ scroll.appendChild(el(`<div style="background:rgba(244,63,94,.1);border:1px solid var(--clay);border-radius:8px;padding:12px 14px;margin-bottom:12px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--clay)">${state.error}</div>`)); state.error=null; }
 
   const card = el(`<div class="card">
     <label>Status</label>
@@ -938,7 +939,7 @@ async function startLesson(id, notes, areaName){
   try{
     state.brief = await generateBrief(id, notes, areaName);
     state.view='brief'; state.reviewMode=false;
-  }catch(e){ console.error('Briefing generation failed:', e); state.error='Could not generate the briefing — try again.'; state.view='reading'; }
+  }catch(e){ console.error('Briefing generation failed:', e); state.error='Could not generate briefing: '+e.message; state.view='reading'; }
   render();
 }
 
