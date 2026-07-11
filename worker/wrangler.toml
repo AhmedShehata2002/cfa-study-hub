@@ -1,3 +1,7 @@
 name = "cfa-study-hub"
 main = "worker.js"
 compatibility_date = "2024-01-01"
+
+[[kv_namespaces]]
+binding = "STUDY_KV"
+id = "a4869c9488ab4c1bbcbddcf22d275a61"

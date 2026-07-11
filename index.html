@@ -345,7 +345,26 @@ let state={tab:'cfa', view:'home', areaOpen:{}, readingId:null, phase:null, sele
 const el=h=>{const d=document.createElement('div');d.innerHTML=h.trim();return d.firstChild;};
 const todayStr=()=>new Date().toISOString().slice(0,10);
 async function getJSON(k,f){try{const v=localStorage.getItem(k);return v!==null?JSON.parse(v):f;}catch(e){return f;}}
-async function setJSON(k,v){try{localStorage.setItem(k, JSON.stringify(v));}catch(e){console.error('Storage write failed',e);}}
+async function setJSON(k,v){
+  try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){ console.error('Storage write failed',e); }
+  pushToCloud(k, JSON.stringify(v)); // fire-and-forget — don't block the UI on network
+}
+async function pullFromCloud(){
+  try{
+    const resp = await fetch(WORKER_BASE + '/sync/list', {headers:{'x-sync-token':SYNC_TOKEN}});
+    if(!resp.ok){ console.error('Cloud sync pull failed:', resp.status); return; }
+    const data = await resp.json();
+    for(const k in data){ if(data[k]!==null && data[k]!==undefined) localStorage.setItem(k, data[k]); }
+  }catch(e){ console.error('Cloud sync pull failed:', e); }
+}
+async function pushToCloud(key, value){
+  try{
+    await fetch(WORKER_BASE + '/sync/set', {
+      method:'POST', headers:{'Content-Type':'application/json','x-sync-token':SYNC_TOKEN},
+      body: JSON.stringify({key, value})
+    });
+  }catch(e){ console.error('Cloud sync push failed for', key, e); }
+}
 
 function allReadingIds(){
   const ids=[];
@@ -427,11 +446,15 @@ const MILESTONES=[3,7,14,30,60,100,150,200,365];
 async function getChat(id){ return await getJSON(K_CHAT+id, []); }
 async function saveChat(id, msgs){ await setJSON(K_CHAT+id, msgs); }
 
-/* Points at the Claude API directly for now (works inside the claude.ai artifact sandbox).
-   Once deployed standalone, change this to your serverless proxy URL — e.g. a Cloudflare
-   Worker that holds the real API key server-side and forwards the request. Nothing else
-   in this file needs to change. */
-const API_ENDPOINT = "https://cfa-study-hub.ahmed1979fcb.workers.dev";
+/* SET THIS to your deployed Worker URL (the one Claude Code already gave you for the API
+   proxy) — both the AI calls and the cross-device sync now route through it.
+   Example: const WORKER_BASE = "https://cfa-study-hub.yourname.workers.dev"; */
+const WORKER_BASE = "https://cfa-study-hub.ahmed1979fcb.workers.dev";
+const API_ENDPOINT = WORKER_BASE + "/v1/messages";
+
+/* Must match the SYNC_TOKEN secret you set on the Worker (wrangler secret put SYNC_TOKEN).
+   Any random string works — it just proves requests are really from your app. */
+const SYNC_TOKEN = "f0c527d62dc73d53d69d44a311dac7308bd3c5f452c2f2af";
 
 async function callClaude(sys,user,maxTokens){
   const resp=await fetch(API_ENDPOINT,{method:"POST",
@@ -447,7 +470,7 @@ async function generateBrief(readingId, notes, areaName){
 {"hook":"1-2 sentences grounding this reading in a real-world scenario a beginner can picture immediately","keywords":[{"term":"a key term used in this reading","definition":"one plain-English sentence, no jargon used to explain the jargon"}],"about":"1-2 sentences on what this reading covers, building on the hook","exam_note":"one sentence merging why the CFA tests this and the core LOS being tested","formulas":[{"name":"short name","expr":"the formula written as a valid LaTeX expression (e.g. \\\\frac{a}{b}, x^2, \\\\times), no surrounding $ signs","note":"one short line on when to use it"}],"worked_example":{"problem":"a short concrete numeric scenario using this reading's core formula","steps":["step 1 of the arithmetic","step 2","..."],"calculator":["exact BA II Plus keystroke sequence, one logical step per line"]},"diagram_svg":"a small self-contained SVG (viewBox 0 0 320 180, using currentColor) for the single most useful visual, or null if none genuinely helps"}
 keywords: 3-4 terms max. formulas: max 2, empty array if none exist (e.g. Ethics, Corporate Governance). worked_example: null if this reading involves no real calculation — only include it for genuinely computational readings (TVM, quant methods, yields, duration, portfolio math, etc), and when included keep steps to 4 max and calculator keystrokes concrete and exact. diagram_svg: null for most readings, only when a visual truly clarifies better than text. Keep every field short — this is a beginner's warm-up, not a chapter.`;
   const user=`Topic area: ${areaName}\nReading: ${readingName(readingId)}\nStudent's notes (may be brief, extensive book excerpts, or empty — use your own CFA knowledge of this reading to fill gaps):\n${notes||"(no notes provided — use standard CFA curriculum knowledge for this reading)"}`;
-  return JSON.parse(await callClaude(sys,user,1000));
+  return JSON.parse(await callClaude(sys,user,1800));
 }
 function questionCountFor(id){
   const mins = (READING_LOOKUP[id]||{}).minutes || FALLBACK_MINUTES;
@@ -462,7 +485,8 @@ async function generateQuestions(readingId, notes, areaName, count){
 {"questions":[{"stem":"the full question, including any scenario setup","choices":[{"label":"A","text":"...","correct":false,"explain":"why this option is right or wrong, one concise sentence"},{"label":"B","text":"...","correct":false,"explain":"..."},{"label":"C","text":"...","correct":false,"explain":"..."}]}]}
 Generate exactly ${n} questions grounded in the reading and notes given, at genuine CFA Level I difficulty. Exactly one choice per question has "correct":true. Vary stem style across the set: some direct ("which of the following"), some "least accurately", some short scenario/vignette-based with a named company or two parties. Every option, correct or not, gets its own one-sentence explain — this is the most important part, the student wants to know why each wrong choice is wrong, not just which one is right.`;
   const user=`Topic area: ${areaName}\nReading: ${readingName(readingId)}\nStudent's notes:\n${notes||"(no notes provided — use standard CFA curriculum knowledge for this reading)"}`;
-  return JSON.parse(await callClaude(sys,user,1000)).questions;
+  const tokenBudget = Math.min(2800, 400 + n*220);
+  return JSON.parse(await callClaude(sys,user,tokenBudget)).questions;
 }
 async function askAboutReading(readingId, areaName, notes, history, question){
   const sys=`You are a CFA Level I tutor helping a student while they study a specific reading. Answer their question directly and conversationally, grounded in the reading below and their own notes where relevant. Keep answers focused — a few sentences to a short paragraph unless they ask for more depth. Plain text only, no markdown headers.
@@ -914,7 +938,7 @@ async function startLesson(id, notes, areaName){
   try{
     state.brief = await generateBrief(id, notes, areaName);
     state.view='brief'; state.reviewMode=false;
-  }catch(e){ state.error='Could not generate the briefing — try again.'; state.view='reading'; }
+  }catch(e){ console.error('Briefing generation failed:', e); state.error='Could not generate the briefing — try again.'; state.view='reading'; }
   render();
 }
 
@@ -1000,7 +1024,7 @@ function renderBrief(scroll){
       state.questions = await generateQuestions(id, notes, CURRICULUM[area].name);
       state.current=0; state.results=[]; state.selected=null; state.answered=false; state.reviewMode=false;
       state.view='quiz';
-    }catch(e){ state.error='Could not generate questions — try again.'; state.view='reading'; }
+    }catch(e){ console.error('Question generation failed:', e); state.error='Could not generate questions — try again.'; state.view='reading'; }
     render();
   };
   scroll.appendChild(btn);
@@ -1243,7 +1267,7 @@ function exportAnki(id, bank){
 }
 
 document.querySelectorAll('.navbtn').forEach(b=>{ b.onclick=()=>{ state.tab=b.dataset.tab; state.view='home'; render(); }; });
-render();
+(async ()=>{ await pullFromCloud(); await render(); })();
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').catch(console.warn);
