@@ -8,14 +8,14 @@
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   html,body{margin:0;height:100%;}
   body{background:var(--ink);color:var(--parchment);font-family:'IBM Plex Sans',system-ui,sans-serif;display:flex;justify-content:center;}
-  .shell{width:100%;max-width:420px;min-height:100vh;display:flex;flex-direction:column;position:relative;padding-bottom:78px;}
-  .scroll{flex:1;padding:28px 20px 12px;overflow-y:auto;}
+  .shell{width:100%;max-width:420px;min-height:100vh;display:flex;flex-direction:column;position:relative;padding-bottom:calc(78px + env(safe-area-inset-bottom));}
+  .scroll{flex:1;padding:max(28px, calc(env(safe-area-inset-top) + 16px)) 20px 24px;overflow-y:auto;-webkit-overflow-scrolling:touch;}
   h1,h2,h3{font-family:'Fraunces',Georgia,serif;font-weight:600;margin:0;}
   .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--brass);}
   .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
   .topbar h1{font-size:24px;}
   .streakchip{display:flex;align-items:center;gap:6px;background:var(--slate);border:1px solid var(--rule);border-radius:20px;padding:6px 12px;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--flame);}
-  .card{background:var(--slate);border:1px solid var(--rule);border-radius:12px;padding:20px;margin-bottom:14px;box-shadow:0 1px 3px rgba(28,27,23,.04);}
+  .card{background:var(--slate);border:1px solid var(--rule);border-radius:16px;padding:20px;margin-bottom:16px;box-shadow:0 2px 8px rgba(28,27,23,.06);}
   label{display:block;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--brass-dim);margin-bottom:8px;}
   input[type=text],input[type=date],textarea,select{width:100%;background:var(--slate-2);border:1px solid var(--rule);border-radius:6px;color:var(--parchment);font-family:'IBM Plex Sans',sans-serif;font-size:14px;padding:12px;resize:vertical;}
   textarea{min-height:100px;}
@@ -87,7 +87,7 @@
   .pill.complete{background:rgba(22,164,74,.13);color:var(--sage);}
   .chevron{transition:transform .15s;display:inline-block;}
   .chevron.open{transform:rotate(90deg);}
-  .backlink{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--parchment-dim);margin-bottom:16px;cursor:pointer;display:inline-block;}
+  .backlink{font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--brass);margin-bottom:20px;cursor:pointer;display:inline-flex;align-items:center;gap:3px;padding:6px 0;letter-spacing:.02em;}
   .statuspills{display:flex;gap:8px;margin-bottom:16px;}
   .statuspill{flex:1;text-align:center;padding:10px 4px;border-radius:8px;border:1px solid var(--rule);font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;color:var(--parchment-dim);}
   .statuspill.active.not_started{border-color:var(--parchment-dim);color:var(--parchment);}
@@ -128,9 +128,9 @@
   .task-title.done{color:var(--parchment-dim);text-decoration:line-through;}
   .task-meta{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--parchment-dim);margin-top:2px;}
   .task-project{font-family:'IBM Plex Mono',monospace;font-size:9px;padding:2px 7px;border-radius:8px;background:var(--slate-2);color:var(--sky);}
-  .navbar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:420px;background:var(--slate);border-top:1px solid var(--rule);display:flex;padding:10px 18px 14px;gap:8px;}
-  .navbtn{flex:1;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--parchment-dim);padding:8px 0;border-radius:8px;cursor:pointer;}
-  .navbtn.active{color:var(--brass);background:var(--slate-2);}
+  .navbar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:420px;background:rgba(247,247,244,0.92);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-top:1px solid var(--rule);display:flex;padding:10px 18px max(18px, env(safe-area-inset-bottom));gap:8px;}
+  .navbtn{flex:1;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--parchment-dim);padding:9px 0;border-radius:8px;cursor:pointer;transition:color .15s,background .15s;}
+  .navbtn.active{color:var(--brass);background:rgba(6,182,160,.08);}
   .muted{color:var(--parchment-dim);font-size:13px;line-height:1.6;}
   .chat-msgs{display:flex;flex-direction:column;gap:10px;margin-bottom:14px;max-height:340px;overflow-y:auto;}
   .chat-msg{max-width:85%;padding:10px 13px;border-radius:12px;font-size:13.5px;line-height:1.5;}
@@ -831,7 +831,7 @@ async function openReading(id){
 }
 
 function renderBulkImport(scroll){
-  const back = el(`<div class="backlink">‹ Back</div>`);
+  const back = el(`<div class="backlink">← Back</div>`);
   back.onclick = ()=>{ state.view='home'; render(); };
   scroll.appendChild(back);
   scroll.appendChild(el(`<div class="eyebrow">Bulk import</div><h1 style="margin:6px 0 14px;font-size:20px">Paste notes for several readings at once</h1>`));
@@ -931,7 +931,7 @@ async function renderReading(scroll){
   const progress = await getProgress();
   const entry = progress[id] || {status:'not_started', notes:'', wrongCount:0};
 
-  const back = el(`<div class="backlink">‹ Back</div>`);
+  const back = el(`<div class="backlink">← Back</div>`);
   back.onclick = ()=>{ state.view='home'; state.tab='cfa'; render(); };
   scroll.appendChild(back);
   const hasNotesNow = !!(entry.notes||'').trim();
@@ -1043,7 +1043,7 @@ async function startLesson(id, notes, areaName){
 
 function renderBrief(scroll){
   const b=state.brief; const id=state.readingId; const area=areaOf(id);
-  const back = el(`<div class="backlink">‹ Back</div>`);
+  const back = el(`<div class="backlink">← Back</div>`);
   back.onclick = ()=>{ state.view='reading'; render(); };
   scroll.appendChild(back);
   scroll.appendChild(el(`<div class="eyebrow">Before you start</div><h1 style="margin:6px 0 18px;font-size:19px">${readingName(id)}</h1>`));
@@ -1329,7 +1329,7 @@ async function renderWrongBank(scroll){
   const id = state.readingId;
   const area = areaOf(id);
   const bank = await getWrongBank(id);
-  const back = el(`<div class="backlink">‹ Back</div>`);
+  const back = el(`<div class="backlink">← Back</div>`);
   back.onclick = ()=>{ state.view='reading'; render(); };
   scroll.appendChild(back);
   scroll.appendChild(el(`<div class="eyebrow">Wrong answers bank</div><h1 style="margin:6px 0 18px;font-size:19px">${readingName(id)}</h1>`));
