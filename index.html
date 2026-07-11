@@ -41,6 +41,15 @@
   .subheat-cell{width:15px;height:15px;border-radius:3px;background:var(--rule);flex-shrink:0;}
   .subheat-cell.l1{background:#B2EDE3;} .subheat-cell.l2{background:#66D4C0;} .subheat-cell.l3{background:#1FAE95;} .subheat-cell.l4{background:var(--brass);}
   .subheat-legend{display:flex;align-items:center;gap:5px;margin-top:10px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--parchment-dim);}
+  .formula-box{background:var(--slate-2);border:1px solid var(--rule);border-radius:10px;padding:18px;text-align:center;margin-bottom:8px;overflow-x:auto;}
+  .step-item{display:flex;gap:10px;margin-bottom:12px;align-items:flex-start;}
+  .step-num{flex-shrink:0;width:22px;height:22px;border-radius:50%;background:var(--slate-2);border:1px solid var(--rule);
+    display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--brass-dim);margin-top:1px;}
+  .step-text{font-size:13.5px;line-height:1.55;padding-top:1px;}
+  .calc-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:10px;}
+  .calc-key{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;background:var(--slate);
+    border:1px solid var(--rule);border-radius:7px;padding:7px 11px;color:var(--parchment);box-shadow:0 1px 2px rgba(28,27,23,.06);}
+  .calc-key.fn{background:var(--brass);border-color:var(--brass);color:#fff;}
 
   .path-chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;margin-bottom:14px;}
   .path-chip{flex-shrink:0;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.04em;
@@ -145,6 +154,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
 <div class="shell">
   <div class="scroll" id="scroll"></div>
   <div class="navbar" id="navbar">
@@ -480,8 +490,8 @@ async function callClaude(sys,user,maxTokens){
 }
 async function generateBrief(readingId, notes, areaName){
   const sys=`You are a CFA Level I tutor briefing a finance beginner before a practice quiz. The student has no finance background, so define things in plain English, not textbook language. Output ONLY valid JSON, no markdown fences:
-{"hook":"1-2 sentences grounding this reading in a real-world scenario a beginner can picture immediately","keywords":[{"term":"a key term used in this reading","definition":"one plain-English sentence, no jargon used to explain the jargon"}],"about":"1-2 sentences on what this reading covers, building on the hook","exam_note":"one sentence merging why the CFA tests this and the core LOS being tested","formulas":[{"name":"short name","expr":"the formula written as a valid LaTeX expression (e.g. \\\\frac{a}{b}, x^2, \\\\times), no surrounding $ signs","note":"one short line on when to use it"}],"worked_example":{"problem":"a short concrete numeric scenario using this reading's core formula","steps":["step 1 of the arithmetic","step 2","..."],"calculator":["exact BA II Plus keystroke sequence, one logical step per line"]},"diagram_svg":"a small self-contained SVG (viewBox 0 0 320 180, using currentColor) for the single most useful visual, or null if none genuinely helps"}
-keywords: 3-4 terms max. formulas: max 2, empty array if none exist (e.g. Ethics, Corporate Governance). worked_example: null if this reading involves no real calculation — only include it for genuinely computational readings (TVM, quant methods, yields, duration, portfolio math, etc), and when included keep steps to 4 max and calculator keystrokes concrete and exact. diagram_svg: null for most readings, only when a visual truly clarifies better than text. Keep every field short — this is a beginner's warm-up, not a chapter.`;
+{"hook":"1-2 sentences grounding this reading in a real-world scenario a beginner can picture immediately","keywords":[{"term":"a key term used in this reading","definition":"one plain-English sentence, no jargon used to explain the jargon"}],"about":"1-2 sentences on what this reading covers, building on the hook","exam_note":"one sentence merging why the CFA tests this and the core LOS being tested","formulas":[{"name":"short name","expr":"the formula written as a valid LaTeX expression (e.g. \\\\frac{a}{b}, x^2, \\\\times), no surrounding $ signs","note":"one short line on when to use it"}],"worked_example":{"problem":"a short concrete numeric scenario using this reading's core formula, plain text, dollar amounts written normally like $1,000","steps":["step 1 of the arithmetic, wrapping any actual equation or computation in \\\\( \\\\) — e.g. text like Calculate the HPR: \\\\(\\\\frac{122-100}{100} = 22\\\\%\\\\) — never use plain $ for math since $ means currency here","step 2","..."],"calculator":[["button","labels","for","keystroke","line","one"],["button","labels","for","keystroke","line","two"]]},"diagram_svg":"a small self-contained SVG (viewBox 0 0 320 180, using currentColor) for the single most useful visual, or null if none genuinely helps"}
+keywords: 3-4 terms max. formulas: max 2, empty array if none exist (e.g. Ethics, Corporate Governance). worked_example: null if this reading involves no real calculation — only include it for genuinely computational readings (TVM, quant methods, yields, duration, portfolio math, etc), and when included keep steps to 4 max. calculator: each element of the outer array is ONE line of keystrokes, and each element of that inner array is ONE physical button press or single value typed before a button (e.g. the line for entering N=10 is ["10","N"], the line for clearing is ["2nd","CLR TVM"]) — keep each button label short (2-8 characters) so it renders as a small button chip. diagram_svg: null for most readings, only when a visual truly clarifies better than text. Keep every field short — this is a beginner's warm-up, not a chapter.`;
   const user=`Topic area: ${areaName}\nReading: ${readingName(readingId)}\nStudent's notes (may be brief, extensive book excerpts, or empty — use your own CFA knowledge of this reading to fill gaps):\n${notes||"(no notes provided — use standard CFA curriculum knowledge for this reading)"}`;
   return JSON.parse(await callClaude(sys,user,1800));
 }
@@ -1071,14 +1081,14 @@ function renderBrief(scroll){
   if(b.formulas && b.formulas.length>0){
     const fCard = el(`<div class="card"><div class="eyebrow" style="margin-bottom:12px">Formulas to have ready</div></div>`);
     b.formulas.forEach(f=>{
-      const block = el(`<div style="margin-bottom:14px">
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--sky);margin-bottom:6px">${f.name}</div>
-        <div class="formula-render" style="font-size:16px;margin-bottom:6px"></div>
+      const block = el(`<div style="margin-bottom:18px">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--sky);margin-bottom:8px">${f.name}</div>
+        <div class="formula-box"><div class="formula-render" style="font-size:18px"></div></div>
         <div class="muted">${f.note}</div>
       </div>`);
       const target = block.querySelector('.formula-render');
       try{
-        if(window.katex){ window.katex.render(f.expr, target, {throwOnError:false, displayMode:false}); }
+        if(window.katex){ window.katex.render(f.expr, target, {throwOnError:false, displayMode:true}); }
         else { target.textContent = f.expr; target.style.fontFamily = "'IBM Plex Mono',monospace"; }
       }catch(e){ target.textContent = f.expr; target.style.fontFamily = "'IBM Plex Mono',monospace"; }
       fCard.appendChild(block);
@@ -1089,16 +1099,34 @@ function renderBrief(scroll){
   if(b.worked_example){
     const w = b.worked_example;
     const weCard = el(`<div class="card"><div class="eyebrow" style="margin-bottom:12px">Worked example</div></div>`);
-    weCard.appendChild(el(`<p style="font-size:13.5px;line-height:1.55;margin-bottom:14px">${w.problem}</p>`));
+    weCard.appendChild(el(`<p style="font-size:13.5px;line-height:1.55;margin-bottom:16px">${w.problem}</p>`));
     if(w.steps && w.steps.length>0){
-      const stepsWrap = el(`<div style="margin-bottom:14px"></div>`);
-      w.steps.forEach((s,i)=>{ stepsWrap.appendChild(el(`<div class="muted" style="margin-bottom:6px">${i+1}. ${s}</div>`)); });
+      const stepsWrap = el(`<div style="margin-bottom:16px"></div>`);
+      w.steps.forEach((s,i)=>{
+        stepsWrap.appendChild(el(`<div class="step-item"><div class="step-num">${i+1}</div><div class="step-text">${s}</div></div>`));
+      });
       weCard.appendChild(stepsWrap);
+      // render any \( \) or \[ \] math embedded in the step text, leaving currency $ untouched
+      if(window.renderMathInElement){
+        try{
+          renderMathInElement(stepsWrap, {
+            delimiters: [{left:"\\(", right:"\\)", display:false}, {left:"\\[", right:"\\]", display:true}],
+            throwOnError:false
+          });
+        }catch(e){}
+      }
     }
     if(w.calculator && w.calculator.length>0){
-      weCard.appendChild(el(`<div class="lbl" style="margin-bottom:8px">BA II Plus keystrokes</div>`));
-      const calcWrap = el(`<div style="background:var(--slate-2);border:1px solid var(--rule);border-radius:8px;padding:12px 14px"></div>`);
-      w.calculator.forEach(line=>{ calcWrap.appendChild(el(`<div style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--sage);margin-bottom:4px">${line}</div>`)); });
+      weCard.appendChild(el(`<div class="lbl" style="margin-bottom:10px">BA II Plus keystrokes</div>`));
+      const calcWrap = el(`<div style="background:var(--slate-2);border:1px solid var(--rule);border-radius:10px;padding:14px"></div>`);
+      w.calculator.forEach(line=>{
+        const row = el(`<div class="calc-row"></div>`);
+        (Array.isArray(line)?line:[line]).forEach(tok=>{
+          const isNumeric = /^-?\d+(\.\d+)?%?$/.test(String(tok).trim());
+          row.appendChild(el(`<span class="calc-key ${isNumeric?'':'fn'}">${tok}</span>`));
+        });
+        calcWrap.appendChild(row);
+      });
       weCard.appendChild(calcWrap);
     }
     scroll.appendChild(weCard);
