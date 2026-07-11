@@ -41,7 +41,9 @@
   .subheat-cell{width:15px;height:15px;border-radius:3px;background:var(--rule);flex-shrink:0;}
   .subheat-cell.l1{background:#B2EDE3;} .subheat-cell.l2{background:#66D4C0;} .subheat-cell.l3{background:#1FAE95;} .subheat-cell.l4{background:var(--brass);}
   .subheat-legend{display:flex;align-items:center;gap:5px;margin-top:10px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--parchment-dim);}
-  .formula-box{background:var(--slate-2);border:1px solid var(--rule);border-radius:10px;padding:18px;text-align:center;margin-bottom:8px;overflow-x:auto;}
+  .formula-box{background:rgba(6,182,160,.05);border:1.5px solid rgba(6,182,160,.3);border-left:4px solid var(--brass);
+    border-radius:10px;padding:20px 18px;text-align:center;margin-bottom:8px;overflow-x:auto;}
+  .formula-box .katex{color:var(--parchment);}
   .step-item{display:flex;gap:10px;margin-bottom:12px;align-items:flex-start;}
   .step-num{flex-shrink:0;width:22px;height:22px;border-radius:50%;background:var(--slate-2);border:1px solid var(--rule);
     display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--brass-dim);margin-top:1px;}
@@ -513,10 +515,10 @@ function renderFormulaPlain(expr, target){
 }
 async function generateBrief(readingId, notes, areaName){
   const sys=`You are a CFA Level I tutor briefing a finance beginner before a practice quiz. The student has no finance background, so define things in plain English, not textbook language. Output ONLY valid JSON, no markdown fences:
-{"hook":"1-2 sentences grounding this reading in a real-world scenario a beginner can picture immediately","keywords":[{"term":"a key term used in this reading","definition":"one plain-English sentence, no jargon used to explain the jargon"}],"about":"1-2 sentences on what this reading covers, building on the hook","exam_note":"one sentence merging why the CFA tests this and the core LOS being tested","formulas":[{"name":"short name","expr":"the formula written as a valid LaTeX expression (e.g. \\\\frac{a}{b}, x^2, \\\\times), no surrounding $ signs","note":"one short line on when to use it"}],"worked_example":{"problem":"a short concrete numeric scenario using this reading's core formula, plain text, dollar amounts written normally like $1,000","steps":["step 1 of the arithmetic, wrapping any actual equation or computation in \\\\( \\\\) — e.g. text like Calculate the HPR: \\\\(\\\\frac{122-100}{100} = 22\\\\%\\\\) — never use plain $ for math since $ means currency here","step 2","..."],"calculator":[["button","labels","for","keystroke","line","one"],["button","labels","for","keystroke","line","two"]]},"diagram_svg":"a small self-contained SVG (viewBox 0 0 320 180, using currentColor) for the single most useful visual, or null if none genuinely helps. Keep it genuinely simple: at most 4-5 shapes/labels total, at least 15px padding from every edge of the 320x180 box, text no smaller than 11px, and every element's position must be fully verified to fit inside 0-320 by 0-180 with nothing clipped, overlapping, or touching the edge. A missing diagram is far better than a cluttered or overflowing one — when in doubt, return null."}
-keywords: 3-4 terms max. formulas: max 2, empty array if none exist (e.g. Ethics, Corporate Governance). worked_example: null if this reading involves no real calculation — only include it for genuinely computational readings (TVM, quant methods, yields, duration, portfolio math, etc), and when included keep steps to 4 max. calculator: each element of the outer array is ONE line of keystrokes, and each element of that inner array is ONE physical button press or single value typed before a button (e.g. the line for entering N=10 is ["10","N"], the line for clearing is ["2nd","CLR TVM"]) — keep each button label short (2-8 characters) so it renders as a small button chip. diagram_svg: null for most readings, only when a visual truly clarifies better than text — and when included, simplicity and staying within bounds matters more than completeness. Keep every field short — this is a beginner's warm-up, not a chapter.`;
+{"hook":"1-2 sentences grounding this reading in a real-world scenario a beginner can picture immediately","keywords":[{"term":"a key term used in this reading","definition":"one plain-English sentence, no jargon used to explain the jargon"}],"about":"1-2 sentences on what this reading covers, building on the hook","exam_note":"one sentence merging why the CFA tests this and the core LOS being tested","formulas":[{"name":"short name","expr":"the formula written as a valid LaTeX expression (e.g. \\\\frac{a}{b}, x^2, \\\\times), no surrounding $ signs","note":"one short line on when to use it"}],"worked_example":{"problem":"a short concrete numeric scenario using this reading's core formula, plain text, dollar amounts written normally like $1,000","steps":["step 1 of the arithmetic, wrapping any actual equation or computation in \\\\( \\\\) — e.g. text like Calculate the HPR: \\\\(\\\\frac{122-100}{100} = 22\\\\%\\\\) — never use plain $ for math since $ means currency here","step 2","..."],"calculator":[{"keys":["button","labels","for","one","keystroke","line"],"note":"one short phrase explaining what this specific line of keystrokes accomplishes, e.g. Enter the number of periods"},{"keys":["button","labels","for","next","line"],"note":"..."}],"calculator_result":"one short sentence stating the final computed answer and what it means, e.g. I/Y = 6.83% — this is the money-weighted rate of return"},"diagram_svg":"a small self-contained SVG (viewBox 0 0 320 180, using currentColor) for the single most useful visual, or null if none genuinely helps. Keep it genuinely simple: at most 4-5 shapes/labels total, at least 15px padding from every edge of the 320x180 box, text no smaller than 11px, and every element's position must be fully verified to fit inside 0-320 by 0-180 with nothing clipped, overlapping, or touching the edge. A missing diagram is far better than a cluttered or overflowing one — when in doubt, return null."}
+keywords: 3-4 terms max. formulas: max 2, empty array if none exist (e.g. Ethics, Corporate Governance). worked_example: null if this reading involves no real calculation — only include it for genuinely computational readings (TVM, quant methods, yields, duration, portfolio math, etc), and when included keep steps to 4 max. calculator: each object in the array is ONE line of keystrokes — "keys" is the array of individual button presses for that line (e.g. the line for entering N=10 is {"keys":["10","N"],"note":"Enter the number of periods"}, the line for clearing is {"keys":["2nd","CLR TVM"],"note":"Clear the TVM worksheet before starting"}) — keep each button label short (2-8 characters) so it renders as a small button chip, and make every "note" genuinely explain what that step accomplishes, not just restate the buttons. calculator_result is required whenever calculator is included — always state the final answer explicitly. diagram_svg: null for most readings, only when a visual truly clarifies better than text — and when included, simplicity and staying within bounds matters more than completeness. Keep every field short — this is a beginner's warm-up, not a chapter.`;
   const user=`Topic area: ${areaName}\nReading: ${readingName(readingId)}\nStudent's notes (may be brief, extensive book excerpts, or empty — use your own CFA knowledge of this reading to fill gaps):\n${notes||"(no notes provided — use standard CFA curriculum knowledge for this reading)"}`;
-  return JSON.parse(await callClaude(sys,user,1800));
+  return JSON.parse(await callClaude(sys,user,2200));
 }
 function questionCountFor(id){
   const mins = (READING_LOOKUP[id]||{}).minutes || FALLBACK_MINUTES;
@@ -1148,15 +1150,24 @@ function renderBrief(scroll){
     if(w.calculator && w.calculator.length>0){
       weCard.appendChild(el(`<div class="lbl" style="margin-bottom:10px">BA II Plus keystrokes</div>`));
       const calcWrap = el(`<div style="background:var(--slate-2);border:1px solid var(--rule);border-radius:10px;padding:14px"></div>`);
-      w.calculator.forEach(line=>{
-        const row = el(`<div class="calc-row"></div>`);
-        (Array.isArray(line)?line:[line]).forEach(tok=>{
+      w.calculator.forEach((line,i)=>{
+        // support both the new {keys, note} shape and the older plain-array shape
+        const keys = Array.isArray(line) ? line : (line.keys || []);
+        const note = Array.isArray(line) ? null : line.note;
+        const lineWrap = el(`<div style="margin-bottom:14px"></div>`);
+        const row = el(`<div class="calc-row" style="margin-bottom:${note?'4px':'0'}"></div>`);
+        keys.forEach(tok=>{
           const isNumeric = /^-?\d+(\.\d+)?%?$/.test(String(tok).trim());
           row.appendChild(el(`<span class="calc-key ${isNumeric?'':'fn'}">${tok}</span>`));
         });
-        calcWrap.appendChild(row);
+        lineWrap.appendChild(row);
+        if(note) lineWrap.appendChild(el(`<div class="muted" style="font-size:12px">${note}</div>`));
+        calcWrap.appendChild(lineWrap);
       });
       weCard.appendChild(calcWrap);
+      if(w.calculator_result){
+        weCard.appendChild(el(`<div style="margin-top:12px;padding:12px 14px;background:rgba(22,164,74,.08);border:1px solid rgba(22,164,74,.3);border-radius:8px;font-size:13px;color:var(--parchment)"><strong style="color:var(--sage)">Result:</strong> ${w.calculator_result}</div>`));
+      }
     }
     scroll.appendChild(weCard);
   }
