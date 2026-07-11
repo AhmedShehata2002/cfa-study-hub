@@ -402,6 +402,18 @@ async function ensureSeeded(){
   await setJSON(K_PROGRESS, progress);
   await setJSON(K_SEEDED_V2, true);
 }
+async function backfillMathTags(){
+  const progress = await getJSON(K_PROGRESS,{});
+  let changed = false;
+  for(const id in progress){
+    const entry = progress[id];
+    if(entry.notes && entry.notes.trim() && !entry.mathTag){
+      entry.mathTag = estimateMathIntensity(entry.notes);
+      changed = true;
+    }
+  }
+  if(changed) await setJSON(K_PROGRESS, progress);
+}
 async function getProgress(){ return await getJSON(K_PROGRESS,{}); }
 async function saveProgress(p){ await setJSON(K_PROGRESS,p); }
 async function getWrongBank(id){ return await getJSON(K_WRONG+id,[]); }
@@ -1334,7 +1346,7 @@ function exportAnki(id, bank){
 }
 
 document.querySelectorAll('.navbtn').forEach(b=>{ b.onclick=()=>{ state.tab=b.dataset.tab; state.view='home'; render(); }; });
-(async ()=>{ await pullFromCloud(); await render(); })();
+(async ()=>{ await pullFromCloud(); await backfillMathTags(); await render(); })();
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').catch(console.warn);
