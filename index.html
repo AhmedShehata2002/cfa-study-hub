@@ -9,7 +9,7 @@
   html,body{margin:0;height:100%;}
   body{background:var(--ink);color:var(--parchment);font-family:'IBM Plex Sans',system-ui,sans-serif;display:flex;justify-content:center;}
   .shell{width:100%;max-width:420px;min-height:100vh;display:flex;flex-direction:column;position:relative;padding-bottom:78px;}
-  .scroll{flex:1;padding:24px 18px 12px;overflow-y:auto;}
+  .scroll{flex:1;padding:28px 20px 12px;overflow-y:auto;}
   h1,h2,h3{font-family:'Fraunces',Georgia,serif;font-weight:600;margin:0;}
   .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--brass);}
   .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
@@ -62,16 +62,17 @@
     display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
   .area{border-bottom:1px solid var(--rule);}
   .area:last-child{border-bottom:none;}
-  .area-head{display:flex;justify-content:space-between;align-items:center;padding:14px 0;cursor:pointer;}
-  .area-head .name{font-family:'Fraunces',Georgia,serif;font-size:16px;}
-  .area-head .meta{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--parchment-dim);margin-top:2px;}
-  .area-progress{width:100%;height:4px;background:var(--rule);border-radius:2px;margin-top:6px;overflow:hidden;}
+  .area-head{display:flex;justify-content:space-between;align-items:center;padding:20px 0;cursor:pointer;}
+  .area-head .name{font-family:'Fraunces',Georgia,serif;font-size:17px;line-height:1.3;}
+  .area-head .meta{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--parchment-dim);margin-top:5px;}
+  .area-progress{width:100%;height:3px;background:var(--rule);border-radius:2px;margin-top:10px;overflow:hidden;}
   .area-progress .fill{height:100%;background:var(--brass);}
-  .reading-list{padding:0 0 12px;display:none;}
+  .reading-list{padding:0 0 20px;display:none;}
   .reading-list.open{display:block;}
-  .reading-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;padding-left:8px;border-left:2px solid var(--rule);margin-bottom:2px;cursor:pointer;}
-  .reading-item .rname{font-size:13px;}
-  .pill{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.05em;text-transform:uppercase;padding:3px 8px;border-radius:10px;flex-shrink:0;margin-left:8px;}
+  .reading-item{display:flex;justify-content:space-between;align-items:center;padding:13px 0 13px 12px;border-left:2px solid var(--rule);margin-bottom:5px;cursor:pointer;transition:border-color .15s;}
+  .reading-item:hover{border-left-color:var(--brass-dim);}
+  .reading-item .rname{font-size:13px;line-height:1.4;}
+  .pill{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.05em;text-transform:uppercase;padding:4px 9px;border-radius:10px;flex-shrink:0;margin-left:8px;}
   .pill.not_started{background:rgba(118,116,104,.10);color:var(--parchment-dim);}
   .pill.in_progress{background:rgba(255,122,41,.14);color:var(--flame);}
   .pill.complete{background:rgba(22,164,74,.13);color:var(--sage);}
@@ -775,7 +776,7 @@ async function renderCFA(scroll){
       <div class="area-head" data-area="${area}">
         <div><div class="name">${c.name}</div>
           <div class="meta">${completeCount}/${c.readings.length} · ${chunks.length} readings · exam weight ${c.weightPct}</div>
-          ${areaMathTag ? `<div style="margin-top:5px">${areaMathTag}</div>` : ''}
+          ${areaMathTag ? `<div style="margin-top:8px">${areaMathTag}</div>` : ''}
           <div class="area-progress"><div class="fill" style="width:${pct}%"></div></div></div>
         <span class="chevron ${isOpen?'open':''}">›</span>
       </div>
@@ -786,7 +787,7 @@ async function renderCFA(scroll){
       const chunkComplete = chunk.items.filter(r=>(progress[r.num]||{}).status==='complete').length;
       if(chunks.length>1){
         const chunkTag = aggregateMathTag(chunk.items, progress);
-        list.appendChild(el(`<div style="display:flex;align-items:center;gap:8px;margin:14px 0 4px;padding-left:8px">
+        list.appendChild(el(`<div style="display:flex;align-items:center;gap:8px;margin:20px 0 6px;padding-left:12px">
           <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--brass-dim)">Reading ${chunk.readingNum} · ${chunkComplete}/${chunk.items.length}</span>
           ${chunkTag||''}
         </div>`));
@@ -798,7 +799,7 @@ async function renderCFA(scroll){
         const mTag = mathTagBadge((progress[id]||{}).mathTag);
         const notePill = hasNotes ? `<span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.05em;text-transform:uppercase;padding:3px 8px;border-radius:10px;background:rgba(6,182,160,.12);color:var(--brass-dim)">NOTES</span>` : '';
         const mTagInRow = mTag ? mTag.replace('style="', 'style="margin-left:0;') : '';
-        const subRow = (hasNotes||mTag) ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:3px;align-items:center">${notePill}${mTagInRow}</div>` : '';
+        const subRow = (hasNotes||mTag) ? `<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px;align-items:center">${notePill}${mTagInRow}</div>` : '';
         const item = el(`<div class="reading-item" data-id="${id}">
           <div class="rname" style="display:flex;flex-direction:column;justify-content:center"><div><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--parchment-dim);margin-right:6px">${id}</span>${r.title}</div>${subRow}</div><span class="pill ${st}">${st.replace('_',' ')}</span>
         </div>`);
