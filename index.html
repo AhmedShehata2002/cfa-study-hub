@@ -479,6 +479,48 @@ function questionCountFor(id){
   if(mins<=35) return 8;
   return 10;
 }
+
+/* Math/calculator intensity — analyzed from the actual notes pasted for THIS reading,
+   not guessed from its topic area, since it genuinely varies within a topic (e.g. some
+   Fixed Income readings are pure definitions, others are all yield math). */
+function estimateMathIntensity(notes){
+  if(!notes || !notes.trim()) return null; // unknown until notes exist
+  const text = notes.toLowerCase();
+  let score = 0;
+  const keywords = ['formula','calculate','calculation','compute','yield','duration','convexity',
+    'npv','irr','wacc','eps','present value','future value','discount rate','annuity','basis point',
+    'spread','ratio','regression','variance','standard deviation','probability','coefficient',
+    'interest rate','compounding','amortiz','weighted average'];
+  keywords.forEach(k=>{ if(text.includes(k)) score+=1; });
+  const numberMatches = text.match(/\d+(\.\d+)?%?/g) || [];
+  score += Math.min(numberMatches.length/8, 6);
+  const symbolMatches = text.match(/[=×÷]|\bN\s*=|\bPV\s*=|\bFV\s*=|\bPMT\s*=/g) || [];
+  score += Math.min(symbolMatches.length/4, 4);
+  if(score>=10) return 'heavy';
+  if(score>=4) return 'some';
+  return 'light';
+}
+const MATH_TAG = {
+  heavy:{label:'CALC HEAVY', cls:'clay'},
+  some:{label:'SOME CALC', cls:'flame'},
+  light:{label:'MOSTLY CONCEPTUAL', cls:'sage'}
+};
+function mathTagBadge(level){
+  if(!level) return '';
+  const t = MATH_TAG[level];
+  return `<span class="pill" style="background:rgba(0,0,0,.04);color:var(--${t.cls});border:1px solid var(--${t.cls})">${t.label}</span>`;
+}
+/* Rolls up a "Reading N" chunk's individual module tags into one overall tag —
+   only shown once every module in that chunk has notes and has been analyzed. */
+function aggregateMathTag(items, progress){
+  const levels = items.map(r=>(progress[r.num]||{}).mathTag);
+  if(levels.some(l=>!l)) return null;
+  const rank = {light:0, some:1, heavy:2};
+  const avg = levels.reduce((s,l)=>s+rank[l],0)/levels.length;
+  const level = avg>=1.5 ? 'heavy' : avg>=0.5 ? 'some' : 'light';
+  return mathTagBadge(level);
+}
+
 async function generateQuestions(readingId, notes, areaName, count){
   const n = count || questionCountFor(readingId);
   const sys=`You write CFA Level I exam-style multiple choice questions, matching the real exam's format and register exactly — including "least accurately"/"most accurately" stems, short scenario vignettes with realistic company or party names and numbers where natural, and precise technical phrasing. Output ONLY valid JSON, no markdown fences:
@@ -516,10 +558,12 @@ function ring(pct,big,small){
 async function curriculumStats(){
   const progress = await getProgress();
   let totalMinutes=0, remainingMinutes=0, completeCount=0, total=0;
+  let chunkTotal=0, chunkComplete=0;
   const areaStats={};
   for(const area in CURRICULUM){
     const c=CURRICULUM[area];
     let areaComplete=0;
+    const chunks = {};
     c.readings.forEach(r=>{
       const id=r.num; total++;
       const mins = r.minutes || FALLBACK_MINUTES;
@@ -528,12 +572,19 @@ async function curriculumStats(){
       if(st==='complete'){ completeCount++; areaComplete++; }
       else if(st==='in_progress'){ remainingMinutes += mins*0.5; }
       else { remainingMinutes += mins; }
+      const readingNum = r.num.split('.')[0];
+      chunks[readingNum] = chunks[readingNum] || [];
+      chunks[readingNum].push(st==='complete');
+    });
+    Object.values(chunks).forEach(statuses=>{
+      chunkTotal++;
+      if(statuses.every(Boolean)) chunkComplete++;
     });
     areaStats[area] = {complete:areaComplete, total:c.readings.length};
   }
   const totalHours = totalMinutes/60;
   const remainingHours = remainingMinutes/60;
-  return { remainingHours, totalHours, completeCount, total, pct: 1-(remainingHours/totalHours), areaStats };
+  return { remainingHours, totalHours, completeCount, total, chunkComplete, chunkTotal, pct: 1-(remainingHours/totalHours), areaStats };
 }
 
 async function render(){
@@ -563,7 +614,7 @@ async function renderToday(scroll){
   const card = el(`<div class="card">
     ${ring(stats.pct, pctDisplay+'%', 'CFA L1 complete')}
     <div class="hourshint">~${hoursLeft} study hours left (est., of ~${Math.round(stats.totalHours)})</div>
-    <div class="muted" style="margin-top:6px">${stats.completeCount} of ${stats.total} readings done</div>
+    <div class="muted" style="margin-top:6px">${stats.chunkComplete} of ${stats.chunkTotal} readings done <span style="opacity:.6">(${stats.completeCount}/${stats.total} modules)</span></div>
   </div>`);
   scroll.appendChild(card);
 
@@ -702,9 +753,11 @@ async function renderCFA(scroll){
       if(!chunk || chunk.readingNum!==readingNum){ chunk = {readingNum, items:[]}; chunks.push(chunk); }
       chunk.items.push(r);
     });
+    const areaMathTag = aggregateMathTag(c.readings, progress);
     const areaEl = el(`<div class="area">
       <div class="area-head" data-area="${area}">
-        <div><div class="name">${c.name}</div><div class="meta">${completeCount}/${c.readings.length} · ${chunks.length} readings · exam weight ${c.weightPct}</div>
+        <div><div class="name">${c.name} ${areaMathTag||''}</div>
+          <div class="meta">${completeCount}/${c.readings.length} · ${chunks.length} readings · exam weight ${c.weightPct}</div>
           <div class="area-progress"><div class="fill" style="width:${pct}%"></div></div></div>
         <span class="chevron ${isOpen?'open':''}">›</span>
       </div>
@@ -714,14 +767,19 @@ async function renderCFA(scroll){
     chunks.forEach(chunk=>{
       const chunkComplete = chunk.items.filter(r=>(progress[r.num]||{}).status==='complete').length;
       if(chunks.length>1){
-        list.appendChild(el(`<div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--brass-dim);margin:14px 0 4px;padding-left:8px">Reading ${chunk.readingNum} · ${chunkComplete}/${chunk.items.length}</div>`));
+        const chunkTag = aggregateMathTag(chunk.items, progress);
+        list.appendChild(el(`<div style="display:flex;align-items:center;gap:8px;margin:14px 0 4px;padding-left:8px">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--brass-dim)">Reading ${chunk.readingNum} · ${chunkComplete}/${chunk.items.length}</span>
+          ${chunkTag||''}
+        </div>`));
       }
       chunk.items.forEach(r=>{
         const id = r.num;
         const st = (progress[id]||{}).status||'not_started';
         const hasNotes = !!((progress[id]||{}).notes||'').trim();
+        const mTag = mathTagBadge((progress[id]||{}).mathTag);
         const item = el(`<div class="reading-item" data-id="${id}">
-          <div class="rname"><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--parchment-dim);margin-right:6px">${id}</span>${r.title}${hasNotes?' <span class="pill" style="background:rgba(6,182,160,.12);color:var(--brass-dim)">NOTES</span>':''}</div><span class="pill ${st}">${st.replace('_',' ')}</span>
+          <div class="rname"><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--parchment-dim);margin-right:6px">${id}</span>${r.title}${hasNotes?' <span class="pill" style="background:rgba(6,182,160,.12);color:var(--brass-dim)">NOTES</span>':''}${mTag?' '+mTag:''}</div><span class="pill ${st}">${st.replace('_',' ')}</span>
         </div>`);
         item.onclick = (e)=>{ e.stopPropagation(); openReading(id); };
         list.appendChild(item);
@@ -798,6 +856,7 @@ function renderBulkImport(scroll){
       } else {
         progress[id] = progress[id] || {status:'not_started', notes:'', wrongCount:0};
         progress[id].notes = combined;
+        progress[id].mathTag = estimateMathIntensity(combined);
         if(progress[id].status==='not_started') progress[id].status='in_progress';
         saved.push(id);
       }
@@ -819,6 +878,7 @@ function renderBulkImport(scroll){
           const fresh = await getProgress();
           fresh[c.id] = fresh[c.id] || {status:'not_started', notes:'', wrongCount:0};
           fresh[c.id].notes = c.pendingBody;
+          fresh[c.id].mathTag = estimateMathIntensity(c.pendingBody);
           if(fresh[c.id].status==='not_started') fresh[c.id].status='in_progress';
           await saveProgress(fresh);
           row.outerHTML = `<div class="muted" style="margin-bottom:6px">✓ ${c.id} updated</div>`;
@@ -843,7 +903,12 @@ async function renderReading(scroll){
   back.onclick = ()=>{ state.view='home'; state.tab='cfa'; render(); };
   scroll.appendChild(back);
   const hasNotesNow = !!(entry.notes||'').trim();
-  scroll.appendChild(el(`<div class="eyebrow">${c.name}</div><h1 style="margin:6px 0 10px;font-size:20px">${readingName(id)}</h1>${hasNotesNow ? `<span class="pill" style="background:rgba(6,182,160,.12);color:var(--brass-dim);margin-bottom:8px;display:inline-block">NOTES ADDED</span>` : ''}`));
+  const mTag = mathTagBadge(entry.mathTag);
+  scroll.appendChild(el(`<div class="eyebrow">${c.name}</div><h1 style="margin:6px 0 10px;font-size:20px">${readingName(id)}</h1>
+    <div>
+      ${mTag}
+      ${hasNotesNow ? `<span class="pill" style="background:rgba(6,182,160,.12);color:var(--brass-dim)">NOTES ADDED</span>` : ''}
+    </div>`));
   scroll.appendChild(el(`<div style="height:14px"></div>`));
   if(state.error){ scroll.appendChild(el(`<div style="background:rgba(244,63,94,.1);border:1px solid var(--clay);border-radius:8px;padding:12px 14px;margin-bottom:12px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--clay)">${state.error}</div>`)); state.error=null; }
 
@@ -878,6 +943,7 @@ async function renderReading(scroll){
     const prog = await getProgress();
     prog[id] = prog[id] || {status:'not_started', notes:'', wrongCount:0};
     prog[id].notes = notes;
+    prog[id].mathTag = estimateMathIntensity(notes);
     if(prog[id].status==='not_started') prog[id].status='in_progress';
     await saveProgress(prog);
     startLesson(id, notes, c.name);
