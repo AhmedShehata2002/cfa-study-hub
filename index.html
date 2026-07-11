@@ -773,8 +773,9 @@ async function renderCFA(scroll){
     const areaMathTag = aggregateMathTag(c.readings, progress);
     const areaEl = el(`<div class="area">
       <div class="area-head" data-area="${area}">
-        <div><div class="name">${c.name} ${areaMathTag||''}</div>
+        <div><div class="name">${c.name}</div>
           <div class="meta">${completeCount}/${c.readings.length} · ${chunks.length} readings · exam weight ${c.weightPct}</div>
+          ${areaMathTag ? `<div style="margin-top:5px">${areaMathTag}</div>` : ''}
           <div class="area-progress"><div class="fill" style="width:${pct}%"></div></div></div>
         <span class="chevron ${isOpen?'open':''}">›</span>
       </div>
@@ -795,8 +796,11 @@ async function renderCFA(scroll){
         const st = (progress[id]||{}).status||'not_started';
         const hasNotes = !!((progress[id]||{}).notes||'').trim();
         const mTag = mathTagBadge((progress[id]||{}).mathTag);
+        const notePill = hasNotes ? `<span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.05em;text-transform:uppercase;padding:3px 8px;border-radius:10px;background:rgba(6,182,160,.12);color:var(--brass-dim)">NOTES</span>` : '';
+        const mTagInRow = mTag ? mTag.replace('style="', 'style="margin-left:0;') : '';
+        const subRow = (hasNotes||mTag) ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:3px;align-items:center">${notePill}${mTagInRow}</div>` : '';
         const item = el(`<div class="reading-item" data-id="${id}">
-          <div class="rname"><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--parchment-dim);margin-right:6px">${id}</span>${r.title}${hasNotes?' <span class="pill" style="background:rgba(6,182,160,.12);color:var(--brass-dim)">NOTES</span>':''}${mTag?' '+mTag:''}</div><span class="pill ${st}">${st.replace('_',' ')}</span>
+          <div class="rname" style="display:flex;flex-direction:column;justify-content:center"><div><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--parchment-dim);margin-right:6px">${id}</span>${r.title}</div>${subRow}</div><span class="pill ${st}">${st.replace('_',' ')}</span>
         </div>`);
         item.onclick = (e)=>{ e.stopPropagation(); openReading(id); };
         list.appendChild(item);
@@ -922,9 +926,9 @@ async function renderReading(scroll){
   const hasNotesNow = !!(entry.notes||'').trim();
   const mTag = mathTagBadge(entry.mathTag);
   scroll.appendChild(el(`<div class="eyebrow">${c.name}</div><h1 style="margin:6px 0 10px;font-size:20px">${readingName(id)}</h1>
-    <div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:4px">
       ${mTag}
-      ${hasNotesNow ? `<span class="pill" style="background:rgba(6,182,160,.12);color:var(--brass-dim)">NOTES ADDED</span>` : ''}
+      ${hasNotesNow ? `<span class="pill" style="background:rgba(6,182,160,.12);color:var(--brass-dim);margin-left:0">NOTES ADDED</span>` : ''}
     </div>`));
   scroll.appendChild(el(`<div style="height:14px"></div>`));
   if(state.error){ scroll.appendChild(el(`<div style="background:rgba(244,63,94,.1);border:1px solid var(--clay);border-radius:8px;padding:12px 14px;margin-bottom:12px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--clay)">${state.error}</div>`)); state.error=null; }
