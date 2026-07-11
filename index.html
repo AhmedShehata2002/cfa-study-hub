@@ -407,9 +407,9 @@ async function backfillMathTags(){
   let changed = false;
   for(const id in progress){
     const entry = progress[id];
-    if(entry.notes && entry.notes.trim() && !entry.mathTag){
-      entry.mathTag = estimateMathIntensity(entry.notes);
-      changed = true;
+    if(entry.notes && entry.notes.trim()){
+      const tag = estimateMathIntensity(entry.notes);
+      if(entry.mathTag !== tag){ entry.mathTag = tag; changed = true; }
     }
   }
   if(changed) await setJSON(K_PROGRESS, progress);
@@ -499,17 +499,22 @@ function estimateMathIntensity(notes){
   if(!notes || !notes.trim()) return null; // unknown until notes exist
   const text = notes.toLowerCase();
   let score = 0;
-  const keywords = ['formula','calculate','calculation','compute','yield','duration','convexity',
-    'npv','irr','wacc','eps','present value','future value','discount rate','annuity','basis point',
-    'spread','ratio','regression','variance','standard deviation','probability','coefficient',
-    'interest rate','compounding','amortiz','weighted average'];
-  keywords.forEach(k=>{ if(text.includes(k)) score+=1; });
-  const numberMatches = text.match(/\d+(\.\d+)?%?/g) || [];
-  score += Math.min(numberMatches.length/8, 6);
-  const symbolMatches = text.match(/[=×÷]|\bN\s*=|\bPV\s*=|\bFV\s*=|\bPMT\s*=/g) || [];
-  score += Math.min(symbolMatches.length/4, 4);
-  if(score>=10) return 'heavy';
-  if(score>=4) return 'some';
+  // Strong: BA II Plus keystrokes / TVM notation (3 pts each)
+  const keystrokes = (text.match(/\bn\s*=|\bi\/y\s*=|\bpv\s*=|\bfv\s*=|\bpmt\s*=|\bcpt\b/g) || []).length;
+  score += keystrokes * 3;
+  // Strong: arithmetic operators in numerical context (2 pts each)
+  const arithmetic = (text.match(/\d\s*[×÷]\s*\d|=\s*[\d.]+\s*%/g) || []).length;
+  score += arithmetic * 2;
+  // Medium: terms specific to quantitative readings (1 pt each)
+  const calcTerms = [
+    'present value','future value','annuity','compoundin','amortiz',
+    'yield to maturity','modified duration','macaulay duration','convexity',
+    'npv','irr','wacc','basis point','coupon rate','discount rate',
+    'calculat','formula','regression','standard deviation','variance'
+  ];
+  calcTerms.forEach(k=>{ if(text.includes(k)) score+=1; });
+  if(score>=8) return 'heavy';
+  if(score>=3) return 'some';
   return 'light';
 }
 const MATH_TAG = {
