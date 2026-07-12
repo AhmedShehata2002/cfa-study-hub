@@ -493,6 +493,20 @@ async function callClaude(sys,user,maxTokens){
   if(!block) throw new Error('empty response');
   return block.text.trim().replace(/^```json\s*/,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
 }
+/* Calls Claude and parses JSON, retrying once if parsing fails.
+   Claude occasionally emits a literal newline or stray character inside a
+   JSON string; a second call almost always comes back clean. */
+async function callClaudeJSON(sys,user,maxTokens){
+  for(let attempt=0; attempt<2; attempt++){
+    const raw = await callClaude(sys,user,maxTokens);
+    try{ return JSON.parse(raw); }catch(e){
+      const m=raw.match(/\{[\s\S]*\}/);
+      if(m){ try{ return JSON.parse(m[0]); }catch(e2){} }
+      if(attempt===0){ console.warn('JSON parse failed, retrying…',e.message); continue; }
+      throw new Error('Bad JSON: '+e.message);
+    }
+  }
+}
 /* KaTeX loads via a separate <script> tag — on a slow connection (or if the CDN is
    blocked) it may never become ready. Poll for a few seconds before giving up. */
 function waitForKatex(timeoutMs){
@@ -579,9 +593,7 @@ async function generateFPOutline(readingId, notes, areaName){
 {"sections":[{"title":"5-word label","focus":"one sentence on what this concept covers","formulaNames":["exact formula name from notes, e.g. HPR","Geometric mean","Harmonic mean"]}]}
 Rules: 1-3 sections. Only split for genuinely different real-world problems. formulaNames: list EVERY distinct formula in the notes for this section — be thorough. Empty array if none.`;
   const user=`Topic area: ${areaName}\nReading: ${readingName(readingId)}\nNotes:\n${notes||"(none)"}`;
-  const raw = await callClaude(sys,user,500);
-  try{ return JSON.parse(raw); }
-  catch(e){ const m=raw.match(/\{[\s\S]*\}/); if(m) return JSON.parse(m[0]); throw e; }
+  return callClaudeJSON(sys,user,500);
 }
 async function generateFPSectionMeta(readingId, notes, areaName, sectionTitle, sectionFocus){
   const sys=`Generate the conceptual framework for this CFA concept cluster. GROUNDING RULE: base ENTIRELY on the provided notes — do not pull content from adjacent readings.
@@ -590,9 +602,7 @@ Output ONLY valid JSON, no markdown:
 {"title":"${sectionTitle}","problem":"the real-world problem this cluster solves and why it's genuinely hard — 2-3 sentences, no jargon","variables":[{"name":"variable name","role":"why it matters — 1 sentence"}],"interactions":"how the key variables cause and affect each other — explicit causal chain (A rises → B falls → C follows), 3-5 steps","assumptions":[{"assumption":"a specific simplification","why":"why it's made and what breaks if it doesn't hold"}],"predict_prompt":"a prediction question before any calculation — no equations in this field","realistic_example":"a slightly more realistic scenario connecting back to the real-world problem","common_mistakes":[{"mistake":"a specific error people make","why":"why they make it"}],"check_questions":[{"question":"a reasoning question, not definition recall","answer":"explanation in 2 sentences"}]}
 Rules: variables 2-5 entries. assumptions 1-3, omit if none apply. common_mistakes: every genuinely distinct mistake in the source. check_questions: exactly 2.`;
   const user=`Topic area: ${areaName}\nReading: ${readingName(readingId)}\nNotes:\n${notes||"(none — use standard CFA curriculum knowledge)"}`;
-  const raw = await callClaude(sys,user,1500);
-  try{ return JSON.parse(raw); }
-  catch(e){ const m=raw.match(/\{[\s\S]*\}/); if(m) return JSON.parse(m[0]); throw new Error('Bad JSON (meta): '+e.message); }
+  return callClaudeJSON(sys,user,1500);
 }
 async function generateFPFormula(readingId, notes, areaName, formulaName, sectionTitle){
   const sys=`Teach the "${formulaName}" formula from first principles. Build intuition → derivation → example. GROUNDING RULE: use ONLY content from the provided notes.
@@ -600,16 +610,14 @@ Output ONLY valid JSON, no markdown:
 {"name":"${formulaName}","expr":"valid LaTeX, no surrounding $ signs","derivation":"where the formula comes from and what each term means — 3 sentences max, wrap inline math in \\\\( \\\\), never use plain $","interpretation":"what each variable means physically — 2 sentences max","simple_example":"worked example with every arithmetic step shown — 4 steps max, wrap equations in \\\\( \\\\)","calculator":[{"keys":["each element is exactly ONE physical keystroke — a full number like 1.21903 is ONE element never split into digits; a function key like CPT is its own element"],"note":"what this keystroke line accomplishes — max 10 words"}],"calculator_result":"the final answer and what it means"}
 Rules: omit calculator entirely if the formula does not warrant a BA II Plus walkthrough. Every field must close — never leave a string unterminated.`;
   const user=`Topic area: ${areaName}\nReading: ${readingName(readingId)}\nSection: ${sectionTitle}\nNotes:\n${notes||"(none — use standard CFA curriculum knowledge)"}`;
-  const raw = await callClaude(sys,user,1800);
-  try{ return JSON.parse(raw); }
-  catch(e){ const m=raw.match(/\{[\s\S]*\}/); if(m) return JSON.parse(m[0]); throw new Error('Bad JSON (formula ${formulaName}): '+e.message); }
+  return callClaudeJSON(sys,user,1800);
 }
 async function generateBrief(readingId, notes, areaName){
   const sys=`You are a CFA Level I tutor briefing a finance beginner before a practice quiz. The student has no finance background, so define things in plain English, not textbook language. Output ONLY valid JSON, no markdown fences:
 {"hook":"1-2 sentences grounding this reading in a real-world scenario a beginner can picture immediately","keywords":[{"term":"a key term used in this reading","definition":"one plain-English sentence, no jargon used to explain the jargon"}],"about":"1-2 sentences on what this reading covers, building on the hook","exam_note":"one sentence merging why the CFA tests this and the core LOS being tested","formulas":[{"name":"short name","expr":"the formula written as a valid LaTeX expression (e.g. \\\\frac{a}{b}, x^2, \\\\times), no surrounding $ signs","note":"one short line on when to use it","variables":[{"symbol":"the exact symbol as it appears in expr, e.g. R_G","meaning":"one short plain-English phrase, e.g. Geometric mean return"}]}],"worked_example":{"problem":"a short concrete numeric scenario using this reading's core formula, plain text, dollar amounts written normally like $1,000","steps":["step 1 of the arithmetic, wrapping any actual equation or computation in \\\\( \\\\) — e.g. text like Calculate the HPR: \\\\(\\\\frac{122-100}{100} = 22\\\\%\\\\) — never use plain $ for math since $ means currency here","step 2","..."],"calculator":[{"keys":["button","labels","for","one","keystroke","line"],"note":"one short phrase explaining what this specific line of keystrokes accomplishes, e.g. Enter the number of periods"},{"keys":["button","labels","for","next","line"],"note":"..."}],"calculator_result":"one short sentence stating the final computed answer and what it means, e.g. I/Y = 6.83% — this is the money-weighted rate of return"},"diagram_svg":"a small self-contained SVG (viewBox 0 0 320 180, using currentColor) for the single most useful visual, or null if none genuinely helps. Keep it genuinely simple: at most 4-5 shapes/labels total, at least 15px padding from every edge of the 320x180 box, text no smaller than 11px, and every element's position must be fully verified to fit inside 0-320 by 0-180 with nothing clipped, overlapping, or touching the edge. A missing diagram is far better than a cluttered or overflowing one — when in doubt, return null."}
 keywords: 3-4 terms max. formulas: max 2, empty array if none exist (e.g. Ethics, Corporate Governance). Every distinct symbol that appears in "expr" must have a matching entry in "variables" — the student should never see a letter or symbol in a formula that isn't defined right below it. worked_example: null if this reading involves no real calculation — only include it for genuinely computational readings (TVM, quant methods, yields, duration, portfolio math, etc), and when included keep steps to 4 max. calculator: each object in the array is ONE line of keystrokes — "keys" is the array of individual button presses for that line (e.g. the line for entering N=10 is {"keys":["10","N"],"note":"Enter the number of periods"}, the line for clearing is {"keys":["2nd","CLR TVM"],"note":"Clear the TVM worksheet before starting"}) — keep each button label short (2-8 characters) so it renders as a small button chip, and make every "note" genuinely explain what that step accomplishes, not just restate the buttons. calculator_result is required whenever calculator is included — always state the final answer explicitly. diagram_svg: null for most readings, only when a visual truly clarifies better than text — and when included, simplicity and staying within bounds matters more than completeness. Keep every field short — this is a beginner's warm-up, not a chapter.`;
   const user=`Topic area: ${areaName}\nReading: ${readingName(readingId)}\nStudent's notes (may be brief, extensive book excerpts, or empty — use your own CFA knowledge of this reading to fill gaps):\n${notes||"(no notes provided — use standard CFA curriculum knowledge for this reading)"}`;
-  return JSON.parse(await callClaude(sys,user,2600));
+  return callClaudeJSON(sys,user,2600);
 }
 function questionCountFor(id){
   const mins = (READING_LOOKUP[id]||{}).minutes || FALLBACK_MINUTES;
@@ -672,7 +680,7 @@ async function generateQuestions(readingId, notes, areaName, count){
 Generate exactly ${n} questions grounded in the reading and notes given, at genuine CFA Level I difficulty. Exactly one choice per question has "correct":true. Vary stem style across the set: some direct ("which of the following"), some "least accurately", some short scenario/vignette-based with a named company or two parties. Every option, correct or not, gets its own one-sentence explain — this is the most important part, the student wants to know why each wrong choice is wrong, not just which one is right.`;
   const user=`Topic area: ${areaName}\nReading: ${readingName(readingId)}\nStudent's notes:\n${notes||"(no notes provided — use standard CFA curriculum knowledge for this reading)"}`;
   const tokenBudget = Math.min(2800, 400 + n*220);
-  return JSON.parse(await callClaude(sys,user,tokenBudget)).questions;
+  return (await callClaudeJSON(sys,user,tokenBudget)).questions;
 }
 async function askAboutReading(readingId, areaName, notes, history, question){
   const sys=`You are tutoring a student who does NOT learn by memorization — he builds a complete mental model of how something works, and gets genuinely stuck when a step is skipped or presented as "just accept this." Follow his own stated rules:
