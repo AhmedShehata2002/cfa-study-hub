@@ -485,10 +485,13 @@ async function callClaude(sys,user,maxTokens){
   const resp=await fetch(API_ENDPOINT,{method:"POST",
     headers:{"Content-Type":"application/json"},
     body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:maxTokens||1000,system:sys,messages:[{role:"user",content:user}]})});
+  if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
   const data=await resp.json();
+  if(data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+  if(data.stop_reason==='max_tokens') console.warn('callClaude: hit max_tokens, response may be truncated');
   const block=(data.content||[]).find(b=>b.type==='text');
-  if(!block) throw new Error('empty');
-  return block.text.trim().replace(/^```json/,'').replace(/^```/,'').replace(/```$/,'').trim();
+  if(!block) throw new Error('empty response — API returned: '+JSON.stringify(data).slice(0,200));
+  return block.text.trim().replace(/^```json\s*/,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
 }
 /* KaTeX loads via a separate <script> tag — on a slow connection (or if the CDN is
    blocked) it may never become ready. Poll for a few seconds before giving up. */
@@ -574,7 +577,16 @@ Output ONLY valid JSON, no markdown fences:
 {"sections":[{"title":"short label for this concept cluster, e.g. 'Building the interest rate' or 'Averaging returns over time'","problem":"the real-world problem this specific concept exists to solve, and why it's genuinely difficult — 2-4 sentences, concrete, no jargon yet","variables":[{"name":"the variable or concept","role":"why it matters to the problem, one sentence"}],"interactions":"how these variables cause and affect each other, written as an explicit chain (e.g. 'X rises → which causes Y → which means Z'), not a flat description","assumptions":[{"assumption":"a specific simplification or assumption this model relies on, e.g. 'returns in each period are independent'","why":"why this assumption is made and what breaks or changes if it doesn't hold"}],"predict_prompt":"a specific question inviting the student to predict the direction or shape of the answer before any calculation — no equations in this field","formula":{"expr":"this section's core formula as valid LaTeX, no surrounding $ signs, or empty string if this section has no real formula","derivation":"walk through where the formula comes from and what each term represents, in plain prose, wrapping any actual equations in \\\\( \\\\) — never use plain $ for math since $ means currency","interpretation":"what each variable in the formula means physically or conceptually, not just algebraically"},"simple_example":"a short, clean worked example for THIS section's formula, every step shown, wrapping equations in \\\\( \\\\)","realistic_example":"a slightly more realistic scenario using this section's content, explicitly connected back to this section's real-world problem","calculator":[{"keys":["button","labels","for","one","keystroke","line"],"note":"what this line of keystrokes accomplishes"}],"calculator_result":"one sentence stating the final computed answer and what it means — required whenever calculator is included","common_mistakes":"what people typically get wrong in THIS section specifically, and why they make that mistake","check_questions":[{"question":"a reasoning question testing genuine understanding, not recall — e.g. 'what happens to the answer if this variable doubled', 'which assumption breaks first if X changes', or 'explain this relationship in your own words'","answer":"a model answer explaining the reasoning, not just the final fact"}]}]}
 Keep every field substantive but not padded — this is a real derivation, not a summary, but every sentence should earn its place. If a section has no real formula (e.g. Ethics, Corporate Governance), set formula.expr to an empty string and omit calculator entirely for that section. Only include calculator when the section genuinely involves a computation worth running on a BA II Plus — keep each button label short (2-8 characters). assumptions: 1-3 per section, only the ones that actually matter for this concept — skip this if a section genuinely has no simplifying assumptions. check_questions: exactly 2 per section, genuine reasoning checks (not something answerable by definition-recall alone), each with a real explanatory answer.`;
   const user=`Topic area: ${areaName}\nReading: ${readingName(readingId)}\nStudent's notes:\n${notes||"(no notes provided — use standard CFA curriculum knowledge for this reading)"}`;
-  return JSON.parse(await callClaude(sys,user,5200));
+  const raw = await callClaude(sys,user,5200);
+  try{
+    return JSON.parse(raw);
+  }catch(parseErr){
+    console.error('generateFirstPrinciples JSON parse failed. Raw:', raw);
+    // fallback: extract the outermost {...} in case Claude added surrounding text
+    const match = raw.match(/\{[\s\S]*\}/);
+    if(match){ try{ return JSON.parse(match[0]); }catch(e2){} }
+    throw new Error('Bad JSON: '+parseErr.message);
+  }
 }
 async function generateBrief(readingId, notes, areaName){
   const sys=`You are a CFA Level I tutor briefing a finance beginner before a practice quiz. The student has no finance background, so define things in plain English, not textbook language. Output ONLY valid JSON, no markdown fences:
@@ -1076,7 +1088,7 @@ async function renderReading(scroll){
     try{
       state.firstPrinciples = await generateFirstPrinciples(id, notes, c.name);
       state.view='firstprinciples';
-    }catch(e){ console.error('First-principles generation failed:', e); state.error='Could not build this — try again.'; state.view='reading'; }
+    }catch(e){ console.error('First-principles generation failed:', e); state.error='Could not build this: '+e.message; state.view='reading'; }
     render();
   };
   document.getElementById('startBtn').onclick = async ()=>{
