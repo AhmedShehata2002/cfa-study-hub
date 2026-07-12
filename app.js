@@ -416,6 +416,40 @@ async function pullFromCloud({ silent = false } = {}) {
   }
 }
 
+async function readSSEBody(body) {
+  const reader = body.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  let assembled = '';
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const raw = line.slice(6).trim();
+        if (!raw || raw === '[DONE]') continue;
+        let evt;
+        try { evt = JSON.parse(raw); } catch { continue; }
+        if (evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta') {
+          assembled += evt.delta.text || '';
+        } else if (evt.type === 'error') {
+          const err = new Error(evt.error?.message || 'AI stream error');
+          err.code = 'AI_STREAM_ERROR';
+          err.status = 502;
+          throw err;
+        }
+      }
+    }
+  } finally {
+    try { reader.releaseLock(); } catch {}
+  }
+  return assembled;
+}
+
 async function apiRequest(path, payload, options = {}) {
   const token = authToken();
   if (!token) {
@@ -436,6 +470,21 @@ async function apiRequest(path, payload, options = {}) {
       signal: controller.signal
     });
     const requestId = response.headers.get('x-request-id') || '';
+
+    if (response.headers.get('content-type')?.includes('text/event-stream')) {
+      if (!response.ok) {
+        const err = new Error(`Request failed with HTTP ${response.status}`);
+        err.status = response.status;
+        err.code = 'HTTP_ERROR';
+        err.requestId = requestId;
+        throw err;
+      }
+      const assembled = await readSSEBody(response.body);
+      let data;
+      try { data = assembled ? JSON.parse(assembled) : {}; } catch { data = { message: assembled }; }
+      return data;
+    }
+
     const text = await response.text();
     let data = null;
     try { data = text ? JSON.parse(text) : {}; } catch { data = { message: text }; }

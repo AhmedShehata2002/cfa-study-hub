@@ -89,15 +89,21 @@ export default {
       if (url.pathname === '/v1/lesson-core' && request.method === 'POST') {
         const body = await readJson(request);
         const input = validateLessonInput(body);
-        const result = await generateLessonCore(env, input, requestId);
-        return json(result, 200, cors, requestId);
+        const upstream = await streamLessonCore(env, input, requestId);
+        return new Response(upstream.body, {
+          status: 200,
+          headers: { ...cors, 'content-type': 'text/event-stream', 'cache-control': 'no-store', 'x-request-id': requestId, 'x-content-type-options': 'nosniff' },
+        });
       }
 
       if (url.pathname === '/v1/lesson-practice' && request.method === 'POST') {
         const body = await readJson(request);
         const input = validatePracticeInput(body);
-        const result = await generatePractice(env, input, requestId);
-        return json(result, 200, cors, requestId);
+        const upstream = await streamPractice(env, input, requestId);
+        return new Response(upstream.body, {
+          status: 200,
+          headers: { ...cors, 'content-type': 'text/event-stream', 'cache-control': 'no-store', 'x-request-id': requestId, 'x-content-type-options': 'nosniff' },
+        });
       }
 
       if (url.pathname === '/v1/teach-back' && request.method === 'POST') {
@@ -479,6 +485,98 @@ async function callAnthropic(env, body, requestId) {
   }
 
   return data;
+}
+
+async function callAnthropicStream(env, body, requestId) {
+  requireBinding(env, 'ANTHROPIC_API_KEY');
+  let response;
+  try {
+    response = await fetch(ANTHROPIC_URL, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'anthropic-version': '2023-06-01',
+        'x-api-key': env.ANTHROPIC_API_KEY,
+        'x-client-request-id': requestId,
+      },
+      body: JSON.stringify({ ...body, stream: true }),
+    });
+  } catch {
+    throw appError('Could not reach the AI service', 502, 'AI_UNAVAILABLE', true);
+  }
+  if (!response.ok) {
+    const raw = await response.text();
+    let data;
+    try { data = JSON.parse(raw); } catch { data = {}; }
+    const msg = data?.error?.message || `Anthropic error ${response.status}`;
+    const status = response.status === 429 ? 429 : 502;
+    throw appError(msg, status, response.status === 429 ? 'AI_RATE_LIMITED' : 'AI_UPSTREAM_ERROR', true);
+  }
+  return response;
+}
+
+async function streamLessonCore(env, input, requestId) {
+  const system = `You are the teaching engine for Ahmed's CFA Level I study app. Ahmed learns through mechanisms and cannot reliably retain a rule until every causal link is explicit.
+
+Teach exactly in this order:
+1. Locate the reading in a concept map.
+2. Begin with the real-world problem that made the concept necessary.
+3. Explain the intuition without CFA terminology.
+4. Build a cause-and-effect mechanism. Every step must include WHY it follows and WHAT it causes next.
+5. Derive each genuinely relevant formula from that mechanism. Never introduce a symbol without explaining its meaning and direction.
+6. Work one example line by line and finish with a sanity check.
+7. Translate the understood idea into CFA wording and identify the tempting trap.
+8. End with a compressed exam summary.
+
+Assume no finance background. Do not say "obviously," "simply," or "just." Do not skip algebra. Do not fabricate formulas where none are needed. Remain inside the named reading. Keep each field concise enough to study on screen. Return only data matching the supplied JSON schema.`;
+
+  const user = `TOPIC AREA: ${input.topicArea}
+READING: ${input.title}
+
+SOURCE NOTES:
+${input.notes || '[No source notes were supplied. Use standard CFA Level I knowledge for this named reading and clearly avoid adjacent readings.]'}
+
+Build the mechanism-first core lesson now.`;
+
+  return callAnthropicStream(env, {
+    model: env.ANTHROPIC_MODEL || DEFAULT_MODEL,
+    max_tokens: 7600,
+    system,
+    messages: [{ role: 'user', content: user }],
+    output_config: { format: { type: 'json_schema', schema: coreLessonSchema() } },
+  }, requestId);
+}
+
+async function streamPractice(env, input, requestId) {
+  const system = `You generate progressive CFA Level I practice for Ahmed after he has learned the mechanism. Test understanding in dependency order, not random difficulty.
+
+Create exactly six multiple-choice questions:
+Level 1 identify the concept.
+Level 2 explain the mechanism.
+Level 3 predict the direction of change.
+Level 4 calculate.
+Level 5 interpret the result.
+Level 6 solve a realistic CFA-style mixed question.
+
+Each question has exactly three choices and exactly one correct choice. Each choice must explain why it is right or wrong. Diagnose the likely misunderstanding using only these labels: ${DIAGNOSTIC_TYPES.join(', ')}.
+
+Also create understanding checks that ask for reasoning before calculation and a teach-back prompt that cannot be answered by merely repeating a definition. Return only data matching the supplied JSON schema.`;
+
+  const user = `TOPIC AREA: ${input.topicArea}
+READING: ${input.title}
+
+CORE LESSON:
+${JSON.stringify(input.core)}
+
+Generate progressive practice only for this reading.`;
+
+  return callAnthropicStream(env, {
+    model: env.ANTHROPIC_MODEL || DEFAULT_MODEL,
+    max_tokens: 5800,
+    system,
+    messages: [{ role: 'user', content: user }],
+    output_config: { format: { type: 'json_schema', schema: practiceSchema() } },
+  }, requestId);
 }
 
 function extractText(response) {
