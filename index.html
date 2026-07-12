@@ -542,6 +542,21 @@ function renderFormulaPlain(expr, target){
   target.style.fontFamily = "'IBM Plex Sans',sans-serif";
   target.style.fontSize = '17px';
 }
+/* Defensive rendering: the model occasionally returns a missing field, an object where
+   a string was expected, or an array — never show "undefined" or "[object Object]".
+   Returns '' (never render the block) rather than guessing at malformed content. */
+function safeText(v){
+  if(v===null || v===undefined) return '';
+  if(typeof v==='string') return v.trim();
+  if(typeof v==='number' || typeof v==='boolean') return String(v);
+  if(Array.isArray(v)) return v.map(safeText).filter(Boolean).join(' ');
+  if(typeof v==='object'){
+    if(typeof v.text==='string') return v.text;
+    if(typeof v.value==='string') return v.value;
+    try{ return Object.values(v).map(safeText).filter(Boolean).join(' '); }catch(e){ return ''; }
+  }
+  return '';
+}
 /* Shared by the main brief AND first-principles mode, so calculator keystrokes and
    formula boxes look identical in both places. */
 function renderCalculatorBlock(container, calculator, resultText){
@@ -586,18 +601,23 @@ Rules: 1-3 sections max. Only split when concepts have different real-world prob
   catch(e){ const m=raw.match(/\{[\s\S]*\}/); if(m) return JSON.parse(m[0]); throw e; }
 }
 async function generateFPSection(readingId, notes, areaName, sectionTitle, sectionFocus){
-  const sys=`Teach this ONE CFA concept from first principles. Build intuition before math: problem → mechanism → formula → example.
-Concept: "${sectionTitle}" — ${sectionFocus}
+  const sys=`You are teaching a student who does NOT learn by memorization — he builds a complete mental model. Follow this philosophy:
+- Never start with "here's the formula." Start with the real-world problem and why the obvious approach isn't enough.
+- Every concept must answer "why must this be true," not just "this is true" — explain cause and effect as a chain.
+- Build intuition before mathematics: reality → intuition → mechanism → equation → practice, never reversed.
+- Derive each formula rather than presenting it. Explain where every term comes from.
 
-Output ONLY valid JSON, no markdown fences, no extra text:
-{"title":"${sectionTitle}","problem":"why this is genuinely hard — 2 sentences, no jargon","interactions":"causal chain — 3-5 numbered steps, each 'X → Y because Z', max 20 words each","formula":{"expr":"LaTeX or empty string","derivation":"where the formula comes from and what each symbol means — 3 sentences, wrap inline math in \\\\( \\\\)"},"simple_example":"worked example with all arithmetic steps — 4 steps max, wrap equations in \\\\( \\\\)","calculator":[{"keys":["BA II Plus button labels"],"note":"what this keystroke line does — max 10 words"}],"calculator_result":"one sentence with the final answer","common_mistakes":"the #1 mistake and why — 2 sentences","check_questions":[{"question":"a causal reasoning question, not definition recall","answer":"explanation in 2 sentences"}]}
+GROUNDING RULES (critical):
+- Base this ENTIRELY on the reading and notes provided. Do not pull in content, formulas, or examples from adjacent readings — if it's not in this reading, it doesn't belong here.
+- Focus specifically on the concept: "${sectionTitle}" — ${sectionFocus}
+- If the notes contain multiple distinct formulas for this concept, cover EVERY one — never silently pick just the most prominent. Give each its own entry in the formulas array.
+- If the notes list several mistakes or misconceptions, capture all of them.
 
-HARD RULES:
-• Every string must close — never leave a string unterminated.
-• Omit calculator[] if no BA II Plus computation applies.
-• Total response under 1400 tokens — be concise but complete.`;
-  const user=`Topic area: ${areaName}\nReading: ${readingName(readingId)}\nNotes:\n${notes||"(none — use standard CFA curriculum knowledge)"}`;
-  const raw = await callClaude(sys,user,1800);
+Output ONLY valid JSON, no markdown fences:
+{"title":"short label","problem":"the real-world problem this concept exists to solve, and why it's genuinely difficult — 2-4 sentences, concrete, no jargon","variables":[{"name":"the variable or concept","role":"why it matters to the problem, one sentence"}],"interactions":"how these variables cause and affect each other — explicit chain (X rises → Y → Z), not a flat description","assumptions":[{"assumption":"a specific simplification this model relies on","why":"why it's made and what breaks if it doesn't hold"}],"predict_prompt":"a specific question inviting the student to predict what should happen before any calculation — no equations","formulas":[{"name":"short label, e.g. 'Geometric mean' — one entry per distinct formula actually present in the notes","expr":"valid LaTeX, no surrounding $ signs","derivation":"where this formula comes from and what each term represents — plain prose, wrap equations in \\\\( \\\\), never use plain $","interpretation":"what each variable means physically or conceptually, not just algebraically","simple_example":"a clean worked example for THIS formula, every step shown, wrapping equations in \\\\( \\\\)","calculator":[{"keys":["each element is exactly ONE physical keystroke — a full number like 1.21903 is ONE element, never split into digits; a function key like y^x is its own element"],"note":"what this keystroke line accomplishes"}],"calculator_result":"the final computed answer and what it means — omit the whole calculator field if not needed"}],"realistic_example":"a slightly more realistic scenario connecting back to the real-world problem — may reference multiple formulas if relevant","common_mistakes":[{"mistake":"a specific error people make","why":"why they make it"}],"check_questions":[{"question":"a reasoning question testing genuine understanding, not recall","answer":"model answer explaining the reasoning"}]}
+Rules: assumptions: 1-3, skip if none apply. check_questions: exactly 2. common_mistakes: capture every genuinely distinct mistake from the source material. formulas: one entry per distinct formula — never skip any. Keep every field substantive but not padded.`;
+  const user=`Topic area: ${areaName}\nReading: ${readingName(readingId)}\nStudent's notes:\n${notes||"(no notes provided — use standard CFA curriculum knowledge for this reading)"}`;
+  const raw = await callClaude(sys,user,4000);
   try{ return JSON.parse(raw); }
   catch(e){ const m=raw.match(/\{[\s\S]*\}/); if(m) return JSON.parse(m[0]); throw new Error('Bad JSON: '+e.message); }
 }
@@ -1297,105 +1317,130 @@ function renderBrief(scroll){
 
 function renderFirstPrinciples(scroll){
   const fp = state.firstPrinciples; const id = state.readingId; const area = areaOf(id);
-  const back = el(`<div class="backlink">← Back</div>`);
+  const back = el(`<div class="backlink">‹ Back</div>`);
   back.onclick = ()=>{ state.view='reading'; render(); };
   scroll.appendChild(back);
   scroll.appendChild(el(`<div class="eyebrow">Building this from scratch</div><h1 style="margin:6px 0 18px;font-size:20px">${readingName(id)}</h1>`));
 
-  const sections = fp.sections || [fp]; // fall back gracefully if an old single-section brief is still cached
+  const sections = fp.sections || [fp];
 
   sections.forEach((sec, idx)=>{
     if(sections.length>1){
       scroll.appendChild(el(`<div style="margin:${idx===0?'0':'28px'} 0 4px">
         <span class="pill in_progress">PART ${idx+1} OF ${sections.length}</span>
-        <span style="font-family:'Fraunces',Georgia,serif;font-size:17px;margin-left:8px">${sec.title||''}</span>
+        <span style="font-family:'Fraunces',Georgia,serif;font-size:17px;margin-left:8px">${safeText(sec.title)}</span>
       </div>`));
     }
 
-    scroll.appendChild(el(`<div class="card">
-      <div class="brief-block" style="margin-bottom:0"><div class="lbl">The real problem</div><p>${sec.problem}</p></div>
+    if(safeText(sec.problem)) scroll.appendChild(el(`<div class="card">
+      <div class="brief-block" style="margin-bottom:0"><div class="lbl">The real problem</div><p>${safeText(sec.problem)}</p></div>
     </div>`));
 
     if(sec.variables && sec.variables.length>0){
       const vCard = el(`<div class="card"><div class="eyebrow" style="margin-bottom:12px">The moving parts</div></div>`);
       sec.variables.forEach(v=>{
+        if(!safeText(v.name) && !safeText(v.role)) return;
         vCard.appendChild(el(`<div style="margin-bottom:10px">
-          <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--sky)">${v.name}</span>
-          <div style="font-size:13.5px;line-height:1.5">${v.role}</div>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--sky)">${safeText(v.name)}</span>
+          <div style="font-size:13.5px;line-height:1.5">${safeText(v.role)}</div>
         </div>`));
       });
       scroll.appendChild(vCard);
     }
 
-    scroll.appendChild(el(`<div class="card">
-      <div class="brief-block" style="margin-bottom:0"><div class="lbl">How they connect</div><p style="white-space:pre-line">${sec.interactions}</p></div>
+    if(safeText(sec.interactions)) scroll.appendChild(el(`<div class="card">
+      <div class="brief-block" style="margin-bottom:0"><div class="lbl">How they connect</div><p style="white-space:pre-line">${safeText(sec.interactions)}</p></div>
     </div>`));
 
     if(sec.assumptions && sec.assumptions.length>0){
       const aCard = el(`<div class="card"><div class="eyebrow" style="margin-bottom:12px">What this relies on</div></div>`);
       sec.assumptions.forEach(a=>{
+        if(!safeText(a.assumption) && !safeText(a.why)) return;
         aCard.appendChild(el(`<div style="margin-bottom:12px">
-          <div style="font-size:13.5px;font-weight:600;margin-bottom:3px">${a.assumption}</div>
-          <div class="muted">${a.why}</div>
+          <div style="font-size:13.5px;font-weight:600;margin-bottom:3px">${safeText(a.assumption)}</div>
+          <div class="muted">${safeText(a.why)}</div>
         </div>`));
       });
       scroll.appendChild(aCard);
     }
 
-    if(sec.predict_prompt){
-      scroll.appendChild(el(`<div class="celebrate">
-        <div class="big" style="font-size:15px">Before we calculate anything —</div>
-        <div class="small" style="text-align:left;margin-top:6px;font-size:13px;line-height:1.5">${sec.predict_prompt}</div>
-      </div>`));
-    }
-
-    const hasFormula = sec.formula && sec.formula.expr && sec.formula.expr.trim();
-    if(hasFormula){
-      const fCard = el(`<div class="card"><div class="eyebrow" style="margin-bottom:12px">Where the formula comes from</div>
-        <div class="formula-box" style="margin-bottom:14px"><div class="formula-render" style="font-size:18px"></div></div>
-      </div>`);
-      const target = fCard.querySelector('.formula-render');
-      scroll.appendChild(fCard);
-      renderFormulaBox(target, sec.formula.expr);
-      const derivBlock = el(`<div class="card">
-        <div class="brief-block"><div class="lbl">The derivation</div><p>${sec.formula.derivation}</p></div>
-        <div class="brief-block" style="margin-bottom:0"><div class="lbl">What each part means</div><p>${sec.formula.interpretation}</p></div>
-      </div>`);
-      scroll.appendChild(derivBlock);
-      if(window.renderMathInElement){
-        try{ renderMathInElement(derivBlock, {delimiters:[{left:"\\(",right:"\\)",display:false},{left:"\\[",right:"\\]",display:true}], throwOnError:false}); }catch(e){}
-      }
-    } else if(sec.formula && (sec.formula.derivation || sec.formula.interpretation)){
-      scroll.appendChild(el(`<div class="card">
-        <div class="brief-block" style="margin-bottom:0"><div class="lbl">The reasoning</div><p>${sec.formula.derivation||sec.formula.interpretation}</p></div>
-      </div>`));
-    }
-
-    const exCard = el(`<div class="card">
-      <div class="brief-block" style="margin-bottom:${sec.realistic_example?'':'0'}"><div class="lbl">Simple example</div><p>${sec.simple_example}</p></div>
-      ${sec.realistic_example?`<div class="brief-block" style="margin-bottom:0"><div class="lbl">A more realistic case</div><p>${sec.realistic_example}</p></div>`:''}
-    </div>`);
-    scroll.appendChild(exCard);
-    if(window.renderMathInElement){
-      try{ renderMathInElement(exCard, {delimiters:[{left:"\\(",right:"\\)",display:false},{left:"\\[",right:"\\]",display:true}], throwOnError:false}); }catch(e){}
-    }
-
-    if(sec.calculator && sec.calculator.length>0){
-      const calcCard = el(`<div class="card"></div>`);
-      renderCalculatorBlock(calcCard, sec.calculator, sec.calculator_result);
-      scroll.appendChild(calcCard);
-    }
-
-    scroll.appendChild(el(`<div class="card">
-      <div class="brief-block" style="margin-bottom:0"><div class="lbl">Common mistakes</div><p>${sec.common_mistakes}</p></div>
+    if(safeText(sec.predict_prompt)) scroll.appendChild(el(`<div class="celebrate">
+      <div class="big" style="font-size:15px">Before we calculate anything —</div>
+      <div class="small" style="text-align:left;margin-top:6px;font-size:13px;line-height:1.5">${safeText(sec.predict_prompt)}</div>
     </div>`));
+
+    // formulas[] (new schema) falls back to [formula] (old single-object shape) for cached responses
+    const formulas = Array.isArray(sec.formulas) ? sec.formulas
+      : (sec.formula ? [sec.formula] : []);
+    formulas.forEach(f=>{
+      const expr = safeText(f.expr);
+      if(expr){
+        const fCard = el(`<div class="card"><div class="eyebrow" style="margin-bottom:12px">${safeText(f.name)||'Where the formula comes from'}</div>
+          <div class="formula-box" style="margin-bottom:14px"><div class="formula-render" style="font-size:18px"></div></div>
+        </div>`);
+        const target = fCard.querySelector('.formula-render');
+        scroll.appendChild(fCard);
+        renderFormulaBox(target, expr);
+      }
+      const derivation = safeText(f.derivation), interpretation = safeText(f.interpretation);
+      if(derivation || interpretation){
+        const derivBlock = el(`<div class="card">
+          ${derivation?`<div class="brief-block" style="margin-bottom:${interpretation?'14px':'0'}"><div class="lbl">The derivation</div><p>${derivation}</p></div>`:''}
+          ${interpretation?`<div class="brief-block" style="margin-bottom:0"><div class="lbl">What each part means</div><p>${interpretation}</p></div>`:''}
+        </div>`);
+        scroll.appendChild(derivBlock);
+        if(window.renderMathInElement){
+          try{ renderMathInElement(derivBlock, {delimiters:[{left:"\\(",right:"\\)",display:false},{left:"\\[",right:"\\]",display:true}], throwOnError:false}); }catch(e){}
+        }
+      }
+      const simpleEx = safeText(f.simple_example);
+      if(simpleEx){
+        const sCard = el(`<div class="card"><div class="brief-block" style="margin-bottom:0"><div class="lbl">Simple example</div><p>${simpleEx}</p></div></div>`);
+        scroll.appendChild(sCard);
+        if(window.renderMathInElement){
+          try{ renderMathInElement(sCard, {delimiters:[{left:"\\(",right:"\\)",display:false},{left:"\\[",right:"\\]",display:true}], throwOnError:false}); }catch(e){}
+        }
+      }
+      if(f.calculator && f.calculator.length>0){
+        const calcCard = el(`<div class="card"></div>`);
+        renderCalculatorBlock(calcCard, f.calculator, safeText(f.calculator_result));
+        scroll.appendChild(calcCard);
+      }
+    });
+
+    const realisticEx = safeText(sec.realistic_example);
+    if(realisticEx){
+      const rCard = el(`<div class="card"><div class="brief-block" style="margin-bottom:0"><div class="lbl">A more realistic case</div><p>${realisticEx}</p></div></div>`);
+      scroll.appendChild(rCard);
+      if(window.renderMathInElement){
+        try{ renderMathInElement(rCard, {delimiters:[{left:"\\(",right:"\\)",display:false},{left:"\\[",right:"\\]",display:true}], throwOnError:false}); }catch(e){}
+      }
+    }
+
+    // common_mistakes may be a structured array (new schema) or a plain string (old cached shape)
+    const mistakes = Array.isArray(sec.common_mistakes) ? sec.common_mistakes
+      : (safeText(sec.common_mistakes) ? [{mistake:safeText(sec.common_mistakes), why:''}] : []);
+    if(mistakes.length>0){
+      const mCard = el(`<div class="card"><div class="eyebrow" style="margin-bottom:12px">Common mistakes</div></div>`);
+      mistakes.forEach(m=>{
+        const mistakeText = safeText(m.mistake), whyText = safeText(m.why);
+        if(!mistakeText && !whyText) return;
+        mCard.appendChild(el(`<div style="margin-bottom:12px">
+          <div style="font-size:13.5px;font-weight:600;margin-bottom:3px">${mistakeText}</div>
+          ${whyText?`<div class="muted">${whyText}</div>`:''}
+        </div>`));
+      });
+      scroll.appendChild(mCard);
+    }
 
     if(sec.check_questions && sec.check_questions.length>0){
       const qCard = el(`<div class="card"><div class="eyebrow" style="margin-bottom:12px">Check your understanding</div></div>`);
       sec.check_questions.forEach(q=>{
+        const qText = safeText(q.question), aText = safeText(q.answer);
+        if(!qText) return;
         const qBlock = el(`<div style="margin-bottom:14px">
-          <div style="font-size:13.5px;font-weight:600;margin-bottom:8px;cursor:pointer" class="cq-toggle">${q.question}</div>
-          <div class="muted" style="display:none;border-left:2px solid var(--rule);padding-left:10px">${q.answer}</div>
+          <div style="font-size:13.5px;font-weight:600;margin-bottom:8px;cursor:pointer" class="cq-toggle">${qText}</div>
+          <div class="muted" style="display:none;border-left:2px solid var(--rule);padding-left:10px">${aText}</div>
         </div>`);
         const toggle = qBlock.querySelector('.cq-toggle');
         const answer = qBlock.querySelector('div[style*="display:none"]');
