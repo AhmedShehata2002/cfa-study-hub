@@ -577,19 +577,19 @@ async function renderFormulaBox(target, expr){
   renderFormulaPlain(expr, target);
 }
 async function generateFirstPrinciples(readingId, notes, areaName){
-  const sys=`You are teaching a student who builds mental models, not memorization. Follow this philosophy:
-- Start with the real-world problem, not the formula.
-- Explain cause and effect as a chain, not a flat statement.
-- Derive the formula — explain where every term comes from.
-- Build intuition before math: reality → mechanism → equation → practice.
+  const sys=`You are teaching a CFA student who builds mental models, not memorization. Output ONE section covering the single most important concept in this reading.
 
-A reading may contain multiple distinct ideas. Split into SECTIONS (max 2), one per distinct concept. If only one core idea exists, output one section.
+Output ONLY valid JSON — no markdown fences, no extra text before or after the JSON:
+{"sections":[{"title":"5-word label","problem":"why this problem is genuinely hard — EXACTLY 2 short sentences","interactions":"causal chain ONLY — format as 4 numbered steps, each under 15 words: '1. X rises → Y falls\\n2. ...'","formula":{"expr":"LaTeX or empty string","derivation":"EXACTLY 2 sentences: one on where the formula comes from, one defining each symbol"},"simple_example":"EXACTLY 3 arithmetic steps, each under 20 words, equations wrapped in \\\\( \\\\)","calculator":[{"keys":["BA II button labels"],"note":"max 8 words"}],"calculator_result":"one sentence","common_mistakes":"EXACTLY 1 sentence","check_questions":[{"question":"one causal reasoning question","answer":"EXACTLY 2 sentences"}]}]}
 
-Output ONLY valid JSON, no markdown fences, no extra text:
-{"sections":[{"title":"short label, e.g. 'Building the interest rate'","problem":"the real-world problem this concept solves and why it's hard — 2 sentences max, no jargon","interactions":"how the key variables cause and affect each other — write as an explicit causal chain (A rises → B falls → C follows), 3-5 steps, no padding","formula":{"expr":"core formula as valid LaTeX, no surrounding $ signs, or empty string if no formula","derivation":"where the formula comes from and what each term means — 3 sentences max, wrap any equation in \\\\( \\\\), never use plain $ for math"},"simple_example":"worked example with every arithmetic step shown — 80 words max, wrap equations in \\\\( \\\\)","calculator":[{"keys":["button","labels","for","one","keystroke","line"],"note":"what this keystroke line accomplishes"}],"calculator_result":"one sentence with the final answer — required whenever calculator is included","common_mistakes":"the one most common mistake and exactly why it happens — 2 sentences max","check_questions":[{"question":"one reasoning question — NOT definition recall, e.g. 'what happens if X doubles' or 'which direction does Y move if Z changes'","answer":"model answer in 2 sentences, explaining the reasoning"}]}]}
-Rules: omit variables[] and assumptions[] entirely. If a section has no formula set formula.expr to empty string and omit calculator. Only include calculator when the section genuinely involves a BA II Plus computation; keep each button label 2-8 characters. check_questions: exactly 1 per section. Keep every field at the stated limit — do not pad.`;
-  const user=`Topic area: ${areaName}\nReading: ${readingName(readingId)}\nStudent's notes:\n${notes||"(no notes provided — use standard CFA curriculum knowledge for this reading)"}`;
-  const raw = await callClaude(sys,user,8000);
+HARD RULES — violating these breaks the app:
+• Exactly 1 object in sections[].
+• Every string field must close properly — never leave a string open.
+• Omit calculator entirely if no BA II Plus computation applies.
+• No LaTeX \\\\ outside of formula.expr and \\\\( \\\\) wrappers.
+• Total response MUST be under 1200 tokens — be ruthlessly concise.`;
+  const user=`Topic area: ${areaName}\nReading: ${readingName(readingId)}\nStudent's notes:\n${notes||"(none — use standard CFA curriculum knowledge)"}`;
+  const raw = await callClaude(sys,user,1800);
   try{
     return JSON.parse(raw);
   }catch(parseErr){
