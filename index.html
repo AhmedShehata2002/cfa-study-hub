@@ -484,14 +484,31 @@ const SYNC_TOKEN = "f0c527d62dc73d53d69d44a311dac7308bd3c5f452c2f2af";
 async function callClaude(sys,user,maxTokens){
   const resp=await fetch(API_ENDPOINT,{method:"POST",
     headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:maxTokens||1000,system:sys,messages:[{role:"user",content:user}]})});
+    body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:maxTokens||1000,stream:true,system:sys,messages:[{role:"user",content:user}]})});
   if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
-  const data=await resp.json();
-  if(data.error) throw new Error(data.error.message || JSON.stringify(data.error));
-  if(data.stop_reason==='max_tokens') console.warn('callClaude: hit max_tokens, response may be truncated');
-  const block=(data.content||[]).find(b=>b.type==='text');
-  if(!block) throw new Error('empty response — API returned: '+JSON.stringify(data).slice(0,200));
-  return block.text.trim().replace(/^```json\s*/,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
+  const reader=resp.body.getReader();
+  const decoder=new TextDecoder();
+  let text='',buf='';
+  while(true){
+    const {done,value}=await reader.read();
+    if(done) break;
+    buf+=decoder.decode(value,{stream:true});
+    const lines=buf.split('\n');
+    buf=lines.pop();
+    for(const line of lines){
+      if(!line.startsWith('data: ')) continue;
+      const chunk=line.slice(6).trim();
+      if(chunk==='[DONE]') continue;
+      try{
+        const ev=JSON.parse(chunk);
+        if(ev.type==='content_block_delta'&&ev.delta?.type==='text_delta') text+=ev.delta.text;
+        if(ev.type==='error') throw new Error(ev.error?.message||'stream error');
+        if(ev.type==='message_delta'&&ev.delta?.stop_reason==='max_tokens') console.warn('callClaude: hit max_tokens');
+      }catch(e){ if(e.message==='stream error') throw e; }
+    }
+  }
+  if(!text) throw new Error('empty response');
+  return text.trim().replace(/^```json\s*/,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
 }
 /* KaTeX loads via a separate <script> tag — on a slow connection (or if the CDN is
    blocked) it may never become ready. Poll for a few seconds before giving up. */
