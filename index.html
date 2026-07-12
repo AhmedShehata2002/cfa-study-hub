@@ -484,31 +484,14 @@ const SYNC_TOKEN = "f0c527d62dc73d53d69d44a311dac7308bd3c5f452c2f2af";
 async function callClaude(sys,user,maxTokens){
   const resp=await fetch(API_ENDPOINT,{method:"POST",
     headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:maxTokens||1000,stream:true,system:sys,messages:[{role:"user",content:user}]})});
+    body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:maxTokens||1000,system:sys,messages:[{role:"user",content:user}]})});
   if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
-  const reader=resp.body.getReader();
-  const decoder=new TextDecoder();
-  let text='',buf='';
-  while(true){
-    const {done,value}=await reader.read();
-    if(done) break;
-    buf+=decoder.decode(value,{stream:true});
-    const lines=buf.split('\n');
-    buf=lines.pop();
-    for(const line of lines){
-      if(!line.startsWith('data: ')) continue;
-      const chunk=line.slice(6).trim();
-      if(chunk==='[DONE]') continue;
-      try{
-        const ev=JSON.parse(chunk);
-        if(ev.type==='content_block_delta'&&ev.delta?.type==='text_delta') text+=ev.delta.text;
-        if(ev.type==='error') throw new Error(ev.error?.message||'stream error');
-        if(ev.type==='message_delta'&&ev.delta?.stop_reason==='max_tokens') console.warn('callClaude: hit max_tokens');
-      }catch(e){ if(e.message==='stream error') throw e; }
-    }
-  }
-  if(!text) throw new Error('empty response');
-  return text.trim().replace(/^```json\s*/,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
+  const data=await resp.json();
+  if(data.error) throw new Error(data.error.message||JSON.stringify(data.error));
+  if(data.stop_reason==='max_tokens') console.warn('callClaude: hit max_tokens');
+  const block=(data.content||[]).find(b=>b.type==='text');
+  if(!block) throw new Error('empty response');
+  return block.text.trim().replace(/^```json\s*/,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
 }
 /* KaTeX loads via a separate <script> tag — on a slow connection (or if the CDN is
    blocked) it may never become ready. Poll for a few seconds before giving up. */
@@ -592,34 +575,34 @@ async function renderFormulaBox(target, expr){
   renderFormulaPlain(expr, target);
 }
 async function generateFPOutline(readingId, notes, areaName){
-  const sys=`List the distinct teachable concepts in this CFA reading. Output ONLY valid JSON, no markdown:
-{"sections":[{"title":"5-word label","focus":"one sentence on what this concept covers"}]}
-Rules: 1-3 sections max. Only split when concepts have different real-world problems or different formulas. If one main idea, output 1 section.`;
+  const sys=`List the distinct concept clusters in this CFA reading. For each, list every formula name that appears in the notes. Output ONLY valid JSON, no markdown:
+{"sections":[{"title":"5-word label","focus":"one sentence on what this concept covers","formulaNames":["exact formula name from notes, e.g. HPR","Geometric mean","Harmonic mean"]}]}
+Rules: 1-3 sections. Only split for genuinely different real-world problems. formulaNames: list EVERY distinct formula in the notes for this section — be thorough. Empty array if none.`;
   const user=`Topic area: ${areaName}\nReading: ${readingName(readingId)}\nNotes:\n${notes||"(none)"}`;
-  const raw = await callClaude(sys,user,400);
+  const raw = await callClaude(sys,user,500);
   try{ return JSON.parse(raw); }
   catch(e){ const m=raw.match(/\{[\s\S]*\}/); if(m) return JSON.parse(m[0]); throw e; }
 }
-async function generateFPSection(readingId, notes, areaName, sectionTitle, sectionFocus){
-  const sys=`You are teaching a student who does NOT learn by memorization — he builds a complete mental model. Follow this philosophy:
-- Never start with "here's the formula." Start with the real-world problem and why the obvious approach isn't enough.
-- Every concept must answer "why must this be true," not just "this is true" — explain cause and effect as a chain.
-- Build intuition before mathematics: reality → intuition → mechanism → equation → practice, never reversed.
-- Derive each formula rather than presenting it. Explain where every term comes from.
-
-GROUNDING RULES (critical):
-- Base this ENTIRELY on the reading and notes provided. Do not pull in content, formulas, or examples from adjacent readings — if it's not in this reading, it doesn't belong here.
-- Focus specifically on the concept: "${sectionTitle}" — ${sectionFocus}
-- If the notes contain multiple distinct formulas for this concept, cover EVERY one — never silently pick just the most prominent. Give each its own entry in the formulas array.
-- If the notes list several mistakes or misconceptions, capture all of them.
-
-Output ONLY valid JSON, no markdown fences:
-{"title":"short label","problem":"the real-world problem this concept exists to solve, and why it's genuinely difficult — 2-4 sentences, concrete, no jargon","variables":[{"name":"the variable or concept","role":"why it matters to the problem, one sentence"}],"interactions":"how these variables cause and affect each other — explicit chain (X rises → Y → Z), not a flat description","assumptions":[{"assumption":"a specific simplification this model relies on","why":"why it's made and what breaks if it doesn't hold"}],"predict_prompt":"a specific question inviting the student to predict what should happen before any calculation — no equations","formulas":[{"name":"short label, e.g. 'Geometric mean' — one entry per distinct formula actually present in the notes","expr":"valid LaTeX, no surrounding $ signs","derivation":"where this formula comes from and what each term represents — plain prose, wrap equations in \\\\( \\\\), never use plain $","interpretation":"what each variable means physically or conceptually, not just algebraically","simple_example":"a clean worked example for THIS formula, every step shown, wrapping equations in \\\\( \\\\)","calculator":[{"keys":["each element is exactly ONE physical keystroke — a full number like 1.21903 is ONE element, never split into digits; a function key like y^x is its own element"],"note":"what this keystroke line accomplishes"}],"calculator_result":"the final computed answer and what it means — omit the whole calculator field if not needed"}],"realistic_example":"a slightly more realistic scenario connecting back to the real-world problem — may reference multiple formulas if relevant","common_mistakes":[{"mistake":"a specific error people make","why":"why they make it"}],"check_questions":[{"question":"a reasoning question testing genuine understanding, not recall","answer":"model answer explaining the reasoning"}]}
-Rules: assumptions: 1-3, skip if none apply. check_questions: exactly 2. common_mistakes: capture every genuinely distinct mistake from the source material. formulas: one entry per distinct formula — never skip any. Per-formula brevity limits: derivation max 3 sentences, interpretation max 2 sentences, simple_example max 4 arithmetic steps each under 20 words. Keep every field concise — substance over length.`;
-  const user=`Topic area: ${areaName}\nReading: ${readingName(readingId)}\nStudent's notes:\n${notes||"(no notes provided — use standard CFA curriculum knowledge for this reading)"}`;
-  const raw = await callClaude(sys,user,6000);
+async function generateFPSectionMeta(readingId, notes, areaName, sectionTitle, sectionFocus){
+  const sys=`Generate the conceptual framework for this CFA concept cluster. GROUNDING RULE: base ENTIRELY on the provided notes — do not pull content from adjacent readings.
+Concept: "${sectionTitle}" — ${sectionFocus}
+Output ONLY valid JSON, no markdown:
+{"title":"${sectionTitle}","problem":"the real-world problem this cluster solves and why it's genuinely hard — 2-3 sentences, no jargon","variables":[{"name":"variable name","role":"why it matters — 1 sentence"}],"interactions":"how the key variables cause and affect each other — explicit causal chain (A rises → B falls → C follows), 3-5 steps","assumptions":[{"assumption":"a specific simplification","why":"why it's made and what breaks if it doesn't hold"}],"predict_prompt":"a prediction question before any calculation — no equations in this field","realistic_example":"a slightly more realistic scenario connecting back to the real-world problem","common_mistakes":[{"mistake":"a specific error people make","why":"why they make it"}],"check_questions":[{"question":"a reasoning question, not definition recall","answer":"explanation in 2 sentences"}]}
+Rules: variables 2-5 entries. assumptions 1-3, omit if none apply. common_mistakes: every genuinely distinct mistake in the source. check_questions: exactly 2.`;
+  const user=`Topic area: ${areaName}\nReading: ${readingName(readingId)}\nNotes:\n${notes||"(none — use standard CFA curriculum knowledge)"}`;
+  const raw = await callClaude(sys,user,1500);
   try{ return JSON.parse(raw); }
-  catch(e){ const m=raw.match(/\{[\s\S]*\}/); if(m) return JSON.parse(m[0]); throw new Error('Bad JSON: '+e.message); }
+  catch(e){ const m=raw.match(/\{[\s\S]*\}/); if(m) return JSON.parse(m[0]); throw new Error('Bad JSON (meta): '+e.message); }
+}
+async function generateFPFormula(readingId, notes, areaName, formulaName, sectionTitle){
+  const sys=`Teach the "${formulaName}" formula from first principles. Build intuition → derivation → example. GROUNDING RULE: use ONLY content from the provided notes.
+Output ONLY valid JSON, no markdown:
+{"name":"${formulaName}","expr":"valid LaTeX, no surrounding $ signs","derivation":"where the formula comes from and what each term means — 3 sentences max, wrap inline math in \\\\( \\\\), never use plain $","interpretation":"what each variable means physically — 2 sentences max","simple_example":"worked example with every arithmetic step shown — 4 steps max, wrap equations in \\\\( \\\\)","calculator":[{"keys":["each element is exactly ONE physical keystroke — a full number like 1.21903 is ONE element never split into digits; a function key like CPT is its own element"],"note":"what this keystroke line accomplishes — max 10 words"}],"calculator_result":"the final answer and what it means"}
+Rules: omit calculator entirely if the formula does not warrant a BA II Plus walkthrough. Every field must close — never leave a string unterminated.`;
+  const user=`Topic area: ${areaName}\nReading: ${readingName(readingId)}\nSection: ${sectionTitle}\nNotes:\n${notes||"(none — use standard CFA curriculum knowledge)"}`;
+  const raw = await callClaude(sys,user,1800);
+  try{ return JSON.parse(raw); }
+  catch(e){ const m=raw.match(/\{[\s\S]*\}/); if(m) return JSON.parse(m[0]); throw new Error('Bad JSON (formula ${formulaName}): '+e.message); }
 }
 async function generateBrief(readingId, notes, areaName){
   const sys=`You are a CFA Level I tutor briefing a finance beginner before a practice quiz. The student has no finance background, so define things in plain English, not textbook language. Output ONLY valid JSON, no markdown fences:
@@ -1124,9 +1107,15 @@ async function renderReading(scroll){
       const built = [];
       for(let i=0;i<sectionDefs.length;i++){
         const s = sectionDefs[i];
-        state.fpLoadingMsg=`Building concept ${i+1} of ${sectionDefs.length}: ${s.title}…`;
+        const formulaNames = (s.formulaNames||[]).slice(0,8);
+        state.fpLoadingMsg=`Building concept ${i+1} of ${sectionDefs.length}: ${s.title} (${formulaNames.length} formula${formulaNames.length===1?'':'s'})…`;
         render();
-        built.push(await generateFPSection(id, notes, c.name, s.title, s.focus));
+        // Run section meta + all its formulas in parallel — each call ≤1800 tokens (~12s), no streaming timeout
+        const [meta, ...formulas] = await Promise.all([
+          generateFPSectionMeta(id, notes, c.name, s.title, s.focus),
+          ...formulaNames.map(name => generateFPFormula(id, notes, c.name, name, s.title))
+        ]);
+        built.push({...meta, formulas});
       }
       state.firstPrinciples = {sections: built};
       state.view='firstprinciples';
