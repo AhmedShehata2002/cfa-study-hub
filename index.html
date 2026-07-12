@@ -576,29 +576,30 @@ async function renderFormulaBox(target, expr){
   }
   renderFormulaPlain(expr, target);
 }
-async function generateFirstPrinciples(readingId, notes, areaName){
-  const sys=`You are teaching a CFA student who builds mental models, not memorization. Output ONE section covering the single most important concept in this reading.
+async function generateFPOutline(readingId, notes, areaName){
+  const sys=`List the distinct teachable concepts in this CFA reading. Output ONLY valid JSON, no markdown:
+{"sections":[{"title":"5-word label","focus":"one sentence on what this concept covers"}]}
+Rules: 1-3 sections max. Only split when concepts have different real-world problems or different formulas. If one main idea, output 1 section.`;
+  const user=`Topic area: ${areaName}\nReading: ${readingName(readingId)}\nNotes:\n${notes||"(none)"}`;
+  const raw = await callClaude(sys,user,400);
+  try{ return JSON.parse(raw); }
+  catch(e){ const m=raw.match(/\{[\s\S]*\}/); if(m) return JSON.parse(m[0]); throw e; }
+}
+async function generateFPSection(readingId, notes, areaName, sectionTitle, sectionFocus){
+  const sys=`Teach this ONE CFA concept from first principles. Build intuition before math: problem → mechanism → formula → example.
+Concept: "${sectionTitle}" — ${sectionFocus}
 
-Output ONLY valid JSON — no markdown fences, no extra text before or after the JSON:
-{"sections":[{"title":"5-word label","problem":"why this problem is genuinely hard — EXACTLY 2 short sentences","interactions":"causal chain ONLY — format as 4 numbered steps, each under 15 words: '1. X rises → Y falls\\n2. ...'","formula":{"expr":"LaTeX or empty string","derivation":"EXACTLY 2 sentences: one on where the formula comes from, one defining each symbol"},"simple_example":"EXACTLY 3 arithmetic steps, each under 20 words, equations wrapped in \\\\( \\\\)","calculator":[{"keys":["BA II button labels"],"note":"max 8 words"}],"calculator_result":"one sentence","common_mistakes":"EXACTLY 1 sentence","check_questions":[{"question":"one causal reasoning question","answer":"EXACTLY 2 sentences"}]}]}
+Output ONLY valid JSON, no markdown fences, no extra text:
+{"title":"${sectionTitle}","problem":"why this is genuinely hard — 2 sentences, no jargon","interactions":"causal chain — 3-5 numbered steps, each 'X → Y because Z', max 20 words each","formula":{"expr":"LaTeX or empty string","derivation":"where the formula comes from and what each symbol means — 3 sentences, wrap inline math in \\\\( \\\\)"},"simple_example":"worked example with all arithmetic steps — 4 steps max, wrap equations in \\\\( \\\\)","calculator":[{"keys":["BA II Plus button labels"],"note":"what this keystroke line does — max 10 words"}],"calculator_result":"one sentence with the final answer","common_mistakes":"the #1 mistake and why — 2 sentences","check_questions":[{"question":"a causal reasoning question, not definition recall","answer":"explanation in 2 sentences"}]}
 
-HARD RULES — violating these breaks the app:
-• Exactly 1 object in sections[].
-• Every string field must close properly — never leave a string open.
-• Omit calculator entirely if no BA II Plus computation applies.
-• No LaTeX \\\\ outside of formula.expr and \\\\( \\\\) wrappers.
-• Total response MUST be under 1200 tokens — be ruthlessly concise.`;
-  const user=`Topic area: ${areaName}\nReading: ${readingName(readingId)}\nStudent's notes:\n${notes||"(none — use standard CFA curriculum knowledge)"}`;
+HARD RULES:
+• Every string must close — never leave a string unterminated.
+• Omit calculator[] if no BA II Plus computation applies.
+• Total response under 1400 tokens — be concise but complete.`;
+  const user=`Topic area: ${areaName}\nReading: ${readingName(readingId)}\nNotes:\n${notes||"(none — use standard CFA curriculum knowledge)"}`;
   const raw = await callClaude(sys,user,1800);
-  try{
-    return JSON.parse(raw);
-  }catch(parseErr){
-    console.error('generateFirstPrinciples JSON parse failed. Raw:', raw);
-    // fallback: extract the outermost {...} in case Claude added surrounding text
-    const match = raw.match(/\{[\s\S]*\}/);
-    if(match){ try{ return JSON.parse(match[0]); }catch(e2){} }
-    throw new Error('Bad JSON: '+parseErr.message);
-  }
+  try{ return JSON.parse(raw); }
+  catch(e){ const m=raw.match(/\{[\s\S]*\}/); if(m) return JSON.parse(m[0]); throw new Error('Bad JSON: '+e.message); }
 }
 async function generateBrief(readingId, notes, areaName){
   const sys=`You are a CFA Level I tutor briefing a finance beginner before a practice quiz. The student has no finance background, so define things in plain English, not textbook language. Output ONLY valid JSON, no markdown fences:
@@ -747,7 +748,7 @@ async function render(){
   else if(state.view==='bulkimport') renderBulkImport(scroll);
   else if(state.view==='briefLoading') scroll.appendChild(el(`<div class="card"><div class="loading"><div class="spinner"></div>Preparing your briefing…</div></div>`));
   else if(state.view==='brief') renderBrief(scroll);
-  else if(state.view==='fpLoading') scroll.appendChild(el(`<div class="card"><div class="loading"><div class="spinner"></div>Building this from first principles…</div></div>`));
+  else if(state.view==='fpLoading') scroll.appendChild(el(`<div class="card"><div class="loading"><div class="spinner"></div>${state.fpLoadingMsg||'Mapping the concepts…'}</div></div>`));
   else if(state.view==='firstprinciples') renderFirstPrinciples(scroll);
   else if(state.view==='quizLoading') scroll.appendChild(el(`<div class="card"><div class="loading"><div class="spinner"></div>Building your questions…</div></div>`));
   else if(state.view==='quiz') renderQuiz(scroll);
@@ -1096,9 +1097,18 @@ async function renderReading(scroll){
   const fpBtn = document.getElementById('fpBtn');
   if(fpBtn) fpBtn.onclick = async ()=>{
     const notes = document.getElementById('notesInput').value.trim();
-    state.readingId = id; state.view='fpLoading'; render();
+    state.readingId = id; state.view='fpLoading'; state.fpLoadingMsg='Mapping the concepts…'; render();
     try{
-      state.firstPrinciples = await generateFirstPrinciples(id, notes, c.name);
+      const outline = await generateFPOutline(id, notes, c.name);
+      const sectionDefs = (outline.sections||[]).slice(0,3);
+      const built = [];
+      for(let i=0;i<sectionDefs.length;i++){
+        const s = sectionDefs[i];
+        state.fpLoadingMsg=`Building concept ${i+1} of ${sectionDefs.length}: ${s.title}…`;
+        render();
+        built.push(await generateFPSection(id, notes, c.name, s.title, s.focus));
+      }
+      state.firstPrinciples = {sections: built};
       state.view='firstprinciples';
     }catch(e){ console.error('First-principles generation failed:', e); state.error='Could not build this: '+e.message; state.view='reading'; }
     render();
