@@ -1,12 +1,12 @@
 {
   "name": "CFA Study Hub",
   "short_name": "CFA Hub",
-  "description": "CFA Level I study tool with AI lessons, quizzes, and a progress tracker.",
+  "description": "Mechanism-first CFA Level I study app built around the Ahmed Study Guide.",
   "start_url": "./",
+  "scope": "./",
   "display": "standalone",
-  "orientation": "portrait",
-  "theme_color": "#06B6A0",
-  "background_color": "#FFFFFF",
+  "background_color": "#f5f4ef",
+  "theme_color": "#0f766e",
   "icons": [
     {
       "src": "icons/icon.svg",

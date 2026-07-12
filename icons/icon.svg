@@ -1,7 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#06B6A0"/>
-  <text x="256" y="200" font-family="Georgia,serif" font-size="96" font-weight="700"
-        fill="white" text-anchor="middle" dominant-baseline="middle">CFA</text>
-  <text x="256" y="310" font-family="monospace" font-size="48" font-weight="400"
-        fill="rgba(255,255,255,0.75)" text-anchor="middle" dominant-baseline="middle">STUDY HUB</text>
+  <rect width="512" height="512" rx="112" fill="#0f766e"/>
+  <path d="M122 144h268v48H122zm0 88h196v48H122zm0 88h268v48H122z" fill="#fff" opacity=".94"/>
+  <circle cx="358" cy="256" r="54" fill="#99f6e4"/>
+  <path d="M334 256l16 16 34-38" fill="none" stroke="#0f766e" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
