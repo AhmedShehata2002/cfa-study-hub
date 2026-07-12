@@ -577,22 +577,17 @@ async function renderFormulaBox(target, expr){
   renderFormulaPlain(expr, target);
 }
 async function generateFirstPrinciples(readingId, notes, areaName){
-  const sys=`You are teaching a student who does NOT learn by memorization — he builds a complete mental model of how something works, and needs mechanisms before formulas. Follow this exact philosophy, which he wrote himself:
+  const sys=`You are teaching a student who builds mental models, not memorization. Follow this philosophy:
+- Start with the real-world problem, not the formula.
+- Explain cause and effect as a chain, not a flat statement.
+- Derive the formula — explain where every term comes from.
+- Build intuition before math: reality → mechanism → equation → practice.
 
-- Never start with "here's the formula." Start with what real-world problem exists and why the obvious approach isn't enough.
-- Every concept must answer "why must this be true," not just "this is true" — explain cause and effect as a chain, not a flat statement.
-- Never skip a logical step, even an "obvious" one. Assume one missing connection loses the whole explanation.
-- Connect this reading to the bigger system it's part of, not as an isolated fact.
-- Build intuition before mathematics: reality → intuition → mechanism → equation → practice, never reversed.
-- Derive the formula rather than presenting it — even a simplified derivation. Explain where every term in it comes from.
-- Ask the student to predict what should happen BEFORE showing the calculation.
-- Explain the assumptions behind the model and why they're made.
+A reading may contain multiple distinct ideas. Split into SECTIONS (max 2), one per distinct concept. If only one core idea exists, output one section.
 
-CRITICAL: a single reading often contains multiple genuinely distinct ideas (e.g. how an interest rate is built up from premiums, AND separately how different return-averaging methods work). Do NOT merge unrelated concepts into one continuous narrative — that creates a confusing jump between unrelated ideas. Instead, split the reading into separate SECTIONS, one per distinct concept or formula, each following the full reality-to-practice arc on its own. If a reading genuinely has only one core idea, output just one section — don't invent artificial splits.
-
-Output ONLY valid JSON, no markdown fences:
-{"sections":[{"title":"short label for this concept cluster, e.g. 'Building the interest rate' or 'Averaging returns over time'","problem":"the real-world problem this specific concept exists to solve, and why it's genuinely difficult — 2-4 sentences, concrete, no jargon yet","variables":[{"name":"the variable or concept","role":"why it matters to the problem, one sentence"}],"interactions":"how these variables cause and affect each other, written as an explicit chain (e.g. 'X rises → which causes Y → which means Z'), not a flat description","assumptions":[{"assumption":"a specific simplification or assumption this model relies on, e.g. 'returns in each period are independent'","why":"why this assumption is made and what breaks or changes if it doesn't hold"}],"predict_prompt":"a specific question inviting the student to predict the direction or shape of the answer before any calculation — no equations in this field","formula":{"expr":"this section's core formula as valid LaTeX, no surrounding $ signs, or empty string if this section has no real formula","derivation":"walk through where the formula comes from and what each term represents, in plain prose, wrapping any actual equations in \\\\( \\\\) — never use plain $ for math since $ means currency","interpretation":"what each variable in the formula means physically or conceptually, not just algebraically"},"simple_example":"a short, clean worked example for THIS section's formula, every step shown, wrapping equations in \\\\( \\\\)","realistic_example":"a slightly more realistic scenario using this section's content, explicitly connected back to this section's real-world problem","calculator":[{"keys":["button","labels","for","one","keystroke","line"],"note":"what this line of keystrokes accomplishes"}],"calculator_result":"one sentence stating the final computed answer and what it means — required whenever calculator is included","common_mistakes":"what people typically get wrong in THIS section specifically, and why they make that mistake","check_questions":[{"question":"a reasoning question testing genuine understanding, not recall — e.g. 'what happens to the answer if this variable doubled', 'which assumption breaks first if X changes', or 'explain this relationship in your own words'","answer":"a model answer explaining the reasoning, not just the final fact"}]}]}
-Keep every field substantive but not padded — this is a real derivation, not a summary, but every sentence should earn its place. If a section has no real formula (e.g. Ethics, Corporate Governance), set formula.expr to an empty string and omit calculator entirely for that section. Only include calculator when the section genuinely involves a computation worth running on a BA II Plus — keep each button label short (2-8 characters). assumptions: 1-3 per section, only the ones that actually matter for this concept — skip this if a section genuinely has no simplifying assumptions. check_questions: exactly 2 per section, genuine reasoning checks (not something answerable by definition-recall alone), each with a real explanatory answer.`;
+Output ONLY valid JSON, no markdown fences, no extra text:
+{"sections":[{"title":"short label, e.g. 'Building the interest rate'","problem":"the real-world problem this concept solves and why it's hard — 2 sentences max, no jargon","interactions":"how the key variables cause and affect each other — write as an explicit causal chain (A rises → B falls → C follows), 3-5 steps, no padding","formula":{"expr":"core formula as valid LaTeX, no surrounding $ signs, or empty string if no formula","derivation":"where the formula comes from and what each term means — 3 sentences max, wrap any equation in \\\\( \\\\), never use plain $ for math"},"simple_example":"worked example with every arithmetic step shown — 80 words max, wrap equations in \\\\( \\\\)","calculator":[{"keys":["button","labels","for","one","keystroke","line"],"note":"what this keystroke line accomplishes"}],"calculator_result":"one sentence with the final answer — required whenever calculator is included","common_mistakes":"the one most common mistake and exactly why it happens — 2 sentences max","check_questions":[{"question":"one reasoning question — NOT definition recall, e.g. 'what happens if X doubles' or 'which direction does Y move if Z changes'","answer":"model answer in 2 sentences, explaining the reasoning"}]}]}
+Rules: omit variables[] and assumptions[] entirely. If a section has no formula set formula.expr to empty string and omit calculator. Only include calculator when the section genuinely involves a BA II Plus computation; keep each button label 2-8 characters. check_questions: exactly 1 per section. Keep every field at the stated limit — do not pad.`;
   const user=`Topic area: ${areaName}\nReading: ${readingName(readingId)}\nStudent's notes:\n${notes||"(no notes provided — use standard CFA curriculum knowledge for this reading)"}`;
   const raw = await callClaude(sys,user,8000);
   try{
@@ -1337,10 +1332,12 @@ function renderFirstPrinciples(scroll){
       scroll.appendChild(aCard);
     }
 
-    scroll.appendChild(el(`<div class="celebrate">
-      <div class="big" style="font-size:15px">Before we calculate anything —</div>
-      <div class="small" style="text-align:left;margin-top:6px;font-size:13px;line-height:1.5">${sec.predict_prompt}</div>
-    </div>`));
+    if(sec.predict_prompt){
+      scroll.appendChild(el(`<div class="celebrate">
+        <div class="big" style="font-size:15px">Before we calculate anything —</div>
+        <div class="small" style="text-align:left;margin-top:6px;font-size:13px;line-height:1.5">${sec.predict_prompt}</div>
+      </div>`));
+    }
 
     const hasFormula = sec.formula && sec.formula.expr && sec.formula.expr.trim();
     if(hasFormula){
@@ -1365,8 +1362,8 @@ function renderFirstPrinciples(scroll){
     }
 
     const exCard = el(`<div class="card">
-      <div class="brief-block"><div class="lbl">Simple example</div><p>${sec.simple_example}</p></div>
-      <div class="brief-block" style="margin-bottom:0"><div class="lbl">A more realistic case</div><p>${sec.realistic_example}</p></div>
+      <div class="brief-block" style="margin-bottom:${sec.realistic_example?'':'0'}"><div class="lbl">Simple example</div><p>${sec.simple_example}</p></div>
+      ${sec.realistic_example?`<div class="brief-block" style="margin-bottom:0"><div class="lbl">A more realistic case</div><p>${sec.realistic_example}</p></div>`:''}
     </div>`);
     scroll.appendChild(exCard);
     if(window.renderMathInElement){
