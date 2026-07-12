@@ -540,7 +540,7 @@ Build the mechanism-first core lesson now.`;
 
   return callAnthropicStream(env, {
     model: env.ANTHROPIC_MODEL || DEFAULT_MODEL,
-    max_tokens: 7600,
+    max_tokens: 12000,
     system,
     messages: [{ role: 'user', content: user }],
     tools: [{ name: 'lesson_core', description: 'Generate the mechanism-first core lesson', input_schema: coreLessonSchema() }],
@@ -573,7 +573,7 @@ Generate progressive practice only for this reading.`;
 
   return callAnthropicStream(env, {
     model: env.ANTHROPIC_MODEL || DEFAULT_MODEL,
-    max_tokens: 5800,
+    max_tokens: 8000,
     system,
     messages: [{ role: 'user', content: user }],
     tools: [{ name: 'practice_session', description: 'Generate progressive CFA practice', input_schema: practiceSchema() }],

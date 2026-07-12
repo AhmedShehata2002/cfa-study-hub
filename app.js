@@ -440,10 +440,13 @@ async function readSSEBody(body) {
           } else if (evt.delta?.type === 'input_json_delta') {
             assembled += evt.delta.partial_json || '';
           }
+        } else if (evt.type === 'message_delta' && evt.delta?.stop_reason === 'max_tokens') {
+          const err = new Error('The lesson reached its output limit before finishing. Shorten your source notes and try again.');
+          err.code = 'AI_TRUNCATED';
+          throw err;
         } else if (evt.type === 'error') {
           const err = new Error(evt.error?.message || 'AI stream error');
           err.code = 'AI_STREAM_ERROR';
-          err.status = 502;
           throw err;
         }
       }
@@ -491,8 +494,8 @@ async function apiRequest(path, payload, options = {}) {
         throw err;
       }
       let data;
-      try { data = JSON.parse(assembled); } catch {
-        const err = new Error('The AI response could not be parsed. Please try again.');
+      try { data = JSON.parse(assembled.trim()); } catch (parseErr) {
+        const err = new Error(`The AI response could not be parsed (${parseErr.message}). Please try again.`);
         err.code = 'INVALID_AI_JSON';
         err.requestId = requestId;
         throw err;
