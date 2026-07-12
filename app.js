@@ -434,8 +434,12 @@ async function readSSEBody(body) {
         if (!raw || raw === '[DONE]') continue;
         let evt;
         try { evt = JSON.parse(raw); } catch { continue; }
-        if (evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta') {
-          assembled += evt.delta.text || '';
+        if (evt.type === 'content_block_delta') {
+          if (evt.delta?.type === 'text_delta') {
+            assembled += evt.delta.text || '';
+          } else if (evt.delta?.type === 'input_json_delta') {
+            assembled += evt.delta.partial_json || '';
+          }
         } else if (evt.type === 'error') {
           const err = new Error(evt.error?.message || 'AI stream error');
           err.code = 'AI_STREAM_ERROR';
@@ -480,8 +484,19 @@ async function apiRequest(path, payload, options = {}) {
         throw err;
       }
       const assembled = await readSSEBody(response.body);
+      if (!assembled) {
+        const err = new Error('The AI returned an empty response. Please try again.');
+        err.code = 'EMPTY_AI_RESPONSE';
+        err.requestId = requestId;
+        throw err;
+      }
       let data;
-      try { data = assembled ? JSON.parse(assembled) : {}; } catch { data = { message: assembled }; }
+      try { data = JSON.parse(assembled); } catch {
+        const err = new Error('The AI response could not be parsed. Please try again.');
+        err.code = 'INVALID_AI_JSON';
+        err.requestId = requestId;
+        throw err;
+      }
       return data;
     }
 

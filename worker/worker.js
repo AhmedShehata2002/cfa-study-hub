@@ -543,7 +543,8 @@ Build the mechanism-first core lesson now.`;
     max_tokens: 7600,
     system,
     messages: [{ role: 'user', content: user }],
-    output_config: { format: { type: 'json_schema', schema: coreLessonSchema() } },
+    tools: [{ name: 'lesson_core', description: 'Generate the mechanism-first core lesson', input_schema: coreLessonSchema() }],
+    tool_choice: { type: 'tool', name: 'lesson_core' },
   }, requestId);
 }
 
@@ -575,7 +576,8 @@ Generate progressive practice only for this reading.`;
     max_tokens: 5800,
     system,
     messages: [{ role: 'user', content: user }],
-    output_config: { format: { type: 'json_schema', schema: practiceSchema() } },
+    tools: [{ name: 'practice_session', description: 'Generate progressive CFA practice', input_schema: practiceSchema() }],
+    tool_choice: { type: 'tool', name: 'practice_session' },
   }, requestId);
 }
 
