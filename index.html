@@ -353,7 +353,7 @@ const K_PROGRESS='study:cfa:progress', K_ACTIVITY='study:activity', K_FREEZE='st
 
 let state={tab:'cfa', view:'home', areaOpen:{}, readingId:null, phase:null, selectedPathArea:null,
   questions:[], current:0, results:[], selected:null, answered:false, reviewMode:false,
-  brief:null, error:null, finalScore:0};
+  brief:null, error:null, finalScore:0, firstPrinciples:null};
 
 const el=h=>{const d=document.createElement('div');d.innerHTML=h.trim();return d.firstChild;};
 const todayStr=()=>new Date().toISOString().slice(0,10);
@@ -522,6 +522,24 @@ function renderFormulaPlain(expr, target){
   target.style.fontFamily = "'IBM Plex Sans',sans-serif";
   target.style.fontSize = '17px';
 }
+async function generateFirstPrinciples(readingId, notes, areaName){
+  const sys=`You are teaching a student who does NOT learn by memorization — he builds a complete mental model of how something works, and needs mechanisms before formulas. Follow this exact philosophy, which he wrote himself:
+
+- Never start with "here's the formula." Start with what real-world problem exists and why the obvious approach isn't enough.
+- Every concept must answer "why must this be true," not just "this is true" — explain cause and effect as a chain, not a flat statement.
+- Never skip a logical step, even an "obvious" one. Assume one missing connection loses the whole explanation.
+- Connect this reading to the bigger system it's part of, not as an isolated fact.
+- Build intuition before mathematics: reality → intuition → mechanism → equation → practice, never reversed.
+- Derive the formula rather than presenting it — even a simplified derivation. Explain where every term in it comes from.
+- Ask the student to predict what should happen BEFORE showing the calculation.
+- Explain the assumptions behind the model and why they're made.
+
+Output ONLY valid JSON, no markdown fences, matching this exact structure (this mirrors his own requested 10-step teaching order):
+{"problem":"Step 1-2 combined: the real-world problem this reading exists to solve, and why that problem is genuinely difficult — 2-4 sentences, concrete, no jargon yet","variables":[{"name":"the variable or concept","role":"why it matters to the problem, one sentence"}],"interactions":"Step 4: how these variables cause and affect each other, written as an explicit chain (e.g. 'X rises → which causes Y → which means Z'), not a flat description","predict_prompt":"Step 5: a specific question inviting the student to predict the direction or shape of the answer before any calculation — no equations in this field","formula":{"expr":"the core formula as valid LaTeX, no surrounding $ signs, or empty string if this reading has no real formula","derivation":"Step 6: walk through where the formula comes from and what each term represents, in plain prose, wrapping any actual equations in \\\\( \\\\) — never use plain $ for math since $ means currency","interpretation":"Step 7: what each variable in the formula means physically or conceptually, not just algebraically"},"simple_example":"Step 8: a short, clean worked example, every step shown, wrapping equations in \\\\( \\\\)","realistic_example":"Step 9: a slightly more realistic scenario using this reading's content, explicitly connected back to the real-world problem from step 1","common_mistakes":"Step 10: what people typically get wrong here and why they make that mistake, so it's recognizable rather than just avoided"}
+Keep each field substantive but not padded — this is a real derivation, not a summary, but every sentence should earn its place. If the reading has no real formula (e.g. Ethics, Corporate Governance), set formula.expr to an empty string and keep derivation/interpretation focused on the reasoning/framework instead of an equation.`;
+  const user=`Topic area: ${areaName}\nReading: ${readingName(readingId)}\nStudent's notes:\n${notes||"(no notes provided — use standard CFA curriculum knowledge for this reading)"}`;
+  return JSON.parse(await callClaude(sys,user,3200));
+}
 async function generateBrief(readingId, notes, areaName){
   const sys=`You are a CFA Level I tutor briefing a finance beginner before a practice quiz. The student has no finance background, so define things in plain English, not textbook language. Output ONLY valid JSON, no markdown fences:
 {"hook":"1-2 sentences grounding this reading in a real-world scenario a beginner can picture immediately","keywords":[{"term":"a key term used in this reading","definition":"one plain-English sentence, no jargon used to explain the jargon"}],"about":"1-2 sentences on what this reading covers, building on the hook","exam_note":"one sentence merging why the CFA tests this and the core LOS being tested","formulas":[{"name":"short name","expr":"the formula written as a valid LaTeX expression (e.g. \\\\frac{a}{b}, x^2, \\\\times), no surrounding $ signs","note":"one short line on when to use it","variables":[{"symbol":"the exact symbol as it appears in expr, e.g. R_G","meaning":"one short plain-English phrase, e.g. Geometric mean return"}]}],"worked_example":{"problem":"a short concrete numeric scenario using this reading's core formula, plain text, dollar amounts written normally like $1,000","steps":["step 1 of the arithmetic, wrapping any actual equation or computation in \\\\( \\\\) — e.g. text like Calculate the HPR: \\\\(\\\\frac{122-100}{100} = 22\\\\%\\\\) — never use plain $ for math since $ means currency here","step 2","..."],"calculator":[{"keys":["button","labels","for","one","keystroke","line"],"note":"one short phrase explaining what this specific line of keystrokes accomplishes, e.g. Enter the number of periods"},{"keys":["button","labels","for","next","line"],"note":"..."}],"calculator_result":"one short sentence stating the final computed answer and what it means, e.g. I/Y = 6.83% — this is the money-weighted rate of return"},"diagram_svg":"a small self-contained SVG (viewBox 0 0 320 180, using currentColor) for the single most useful visual, or null if none genuinely helps. Keep it genuinely simple: at most 4-5 shapes/labels total, at least 15px padding from every edge of the 320x180 box, text no smaller than 11px, and every element's position must be fully verified to fit inside 0-320 by 0-180 with nothing clipped, overlapping, or touching the edge. A missing diagram is far better than a cluttered or overflowing one — when in doubt, return null."}
@@ -661,6 +679,8 @@ async function render(){
   else if(state.view==='bulkimport') renderBulkImport(scroll);
   else if(state.view==='briefLoading') scroll.appendChild(el(`<div class="card"><div class="loading"><div class="spinner"></div>Preparing your briefing…</div></div>`));
   else if(state.view==='brief') renderBrief(scroll);
+  else if(state.view==='fpLoading') scroll.appendChild(el(`<div class="card"><div class="loading"><div class="spinner"></div>Building this from first principles…</div></div>`));
+  else if(state.view==='firstprinciples') renderFirstPrinciples(scroll);
   else if(state.view==='quizLoading') scroll.appendChild(el(`<div class="card"><div class="loading"><div class="spinner"></div>Building your questions…</div></div>`));
   else if(state.view==='quiz') renderQuiz(scroll);
   else if(state.view==='summary') await renderSummary(scroll);
@@ -989,6 +1009,7 @@ async function renderReading(scroll){
     <textarea id="notesInput" placeholder="Paste your notes, book excerpts, or full reading text here, or leave blank to use standard CFA knowledge" style="min-height:160px">${entry.notes||''}</textarea>
     <div style="height:14px"></div>
     <button class="btn" id="startBtn">Start lesson (brief + ${questionCountFor(id)} questions)</button>
+    ${(entry.mathTag==='heavy'||entry.mathTag==='some') ? `<div style="height:10px"></div><button class="btn secondary" id="fpBtn">Build this from scratch (first principles)</button>` : ''}
     ${entry.wrongCount>0 ? `<div style="height:10px"></div><button class="btn secondary" id="reviewBtn">Review ${entry.wrongCount} wrong answers</button>
     <div style="height:10px"></div><button class="btn secondary" id="viewBankBtn">View wrong answers bank</button>` : ''}
   </div>`);
@@ -1004,6 +1025,16 @@ async function renderReading(scroll){
       render();
     };
   });
+  const fpBtn = document.getElementById('fpBtn');
+  if(fpBtn) fpBtn.onclick = async ()=>{
+    const notes = document.getElementById('notesInput').value.trim();
+    state.readingId = id; state.view='fpLoading'; render();
+    try{
+      state.firstPrinciples = await generateFirstPrinciples(id, notes, c.name);
+      state.view='firstprinciples';
+    }catch(e){ console.error('First-principles generation failed:', e); state.error='Could not build this — try again.'; state.view='reading'; }
+    render();
+  };
   document.getElementById('startBtn').onclick = async ()=>{
     const notes = document.getElementById('notesInput').value.trim();
     const prog = await getProgress();
@@ -1207,6 +1238,92 @@ function renderBrief(scroll){
   scroll.appendChild(btn);
 }
 
+function renderFirstPrinciples(scroll){
+  const fp = state.firstPrinciples; const id = state.readingId; const area = areaOf(id);
+  const back = el(`<div class="backlink">← Back</div>`);
+  back.onclick = ()=>{ state.view='reading'; render(); };
+  scroll.appendChild(back);
+  scroll.appendChild(el(`<div class="eyebrow">Building this from scratch</div><h1 style="margin:6px 0 18px;font-size:20px">${readingName(id)}</h1>`));
+
+  scroll.appendChild(el(`<div class="card">
+    <div class="brief-block" style="margin-bottom:0"><div class="lbl">The real problem</div><p>${fp.problem}</p></div>
+  </div>`));
+
+  if(fp.variables && fp.variables.length>0){
+    const vCard = el(`<div class="card"><div class="eyebrow" style="margin-bottom:12px">The moving parts</div></div>`);
+    fp.variables.forEach(v=>{
+      vCard.appendChild(el(`<div style="margin-bottom:10px">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--sky)">${v.name}</span>
+        <div style="font-size:13.5px;line-height:1.5">${v.role}</div>
+      </div>`));
+    });
+    scroll.appendChild(vCard);
+  }
+
+  scroll.appendChild(el(`<div class="card">
+    <div class="brief-block" style="margin-bottom:0"><div class="lbl">How they connect</div><p style="white-space:pre-line">${fp.interactions}</p></div>
+  </div>`));
+
+  scroll.appendChild(el(`<div class="celebrate">
+    <div class="big" style="font-size:15px">Before we calculate anything —</div>
+    <div class="small" style="text-align:left;margin-top:6px;font-size:13px;line-height:1.5">${fp.predict_prompt}</div>
+  </div>`));
+
+  const hasFormula = fp.formula && fp.formula.expr && fp.formula.expr.trim();
+  if(hasFormula){
+    const fCard = el(`<div class="card"><div class="eyebrow" style="margin-bottom:12px">Where the formula comes from</div>
+      <div class="formula-box" style="margin-bottom:14px"><div class="formula-render" style="font-size:18px"></div></div>
+    </div>`);
+    const target = fCard.querySelector('.formula-render');
+    scroll.appendChild(fCard);
+    (async ()=>{
+      const ready = await waitForKatex(4000);
+      if(ready){
+        try{ window.katex.render(fp.formula.expr, target, {throwOnError:false, displayMode:true}); }
+        catch(e){ console.error('KaTeX render failed:', fp.formula.expr, e); renderFormulaPlain(fp.formula.expr, target); }
+      } else { renderFormulaPlain(fp.formula.expr, target); }
+    })();
+    const derivBlock = el(`<div class="card">
+      <div class="brief-block"><div class="lbl">The derivation</div><p>${fp.formula.derivation}</p></div>
+      <div class="brief-block" style="margin-bottom:0"><div class="lbl">What each part means</div><p>${fp.formula.interpretation}</p></div>
+    </div>`);
+    scroll.appendChild(derivBlock);
+    if(window.renderMathInElement){
+      try{ renderMathInElement(derivBlock, {delimiters:[{left:"\\(",right:"\\)",display:false},{left:"\\[",right:"\\]",display:true}], throwOnError:false}); }catch(e){}
+    }
+  } else if(fp.formula && (fp.formula.derivation || fp.formula.interpretation)){
+    scroll.appendChild(el(`<div class="card">
+      <div class="brief-block" style="margin-bottom:0"><div class="lbl">The reasoning</div><p>${fp.formula.derivation||fp.formula.interpretation}</p></div>
+    </div>`));
+  }
+
+  const exCard = el(`<div class="card">
+    <div class="brief-block"><div class="lbl">Simple example</div><p>${fp.simple_example}</p></div>
+    <div class="brief-block" style="margin-bottom:0"><div class="lbl">A more realistic case</div><p>${fp.realistic_example}</p></div>
+  </div>`);
+  scroll.appendChild(exCard);
+  if(window.renderMathInElement){
+    try{ renderMathInElement(exCard, {delimiters:[{left:"\\(",right:"\\)",display:false},{left:"\\[",right:"\\]",display:true}], throwOnError:false}); }catch(e){}
+  }
+
+  scroll.appendChild(el(`<div class="card">
+    <div class="brief-block" style="margin-bottom:0"><div class="lbl">Common mistakes</div><p>${fp.common_mistakes}</p></div>
+  </div>`));
+
+  const btn = el(`<button class="btn">I've got it — start ${questionCountFor(id)} questions</button>`);
+  btn.onclick = async ()=>{
+    state.view='quizLoading'; render();
+    try{
+      const progress = await getProgress();
+      const notes = (progress[id]||{}).notes||'';
+      state.questions = await generateQuestions(id, notes, CURRICULUM[area].name);
+      state.current=0; state.results=[]; state.selected=null; state.answered=false; state.reviewMode=false;
+      state.view='quiz';
+    }catch(e){ console.error('Question generation failed:', e); state.error='Could not generate questions — try again.'; state.view='reading'; }
+    render();
+  };
+  scroll.appendChild(btn);
+}
 async function startQuizFromBank(id, areaName){
   state.readingId=id; state.reviewMode=true; state.view='quizLoading'; render();
   const bank = await getWrongBank(id);
