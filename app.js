@@ -405,7 +405,27 @@ async function pullFromCloud({ silent = false } = {}) {
   try {
     const data = await apiRequest('/sync/list', null, { method: 'GET', timeoutMs: 30000 });
     for (const [key, value] of Object.entries(data?.items || {})) {
-      if (key.startsWith('study:') && typeof value === 'string') localStorage.setItem(key, value);
+      if (!key.startsWith('study:') || typeof value !== 'string') continue;
+      if (key === K.progress) {
+        // Merge: start from cloud, then let local data win field-by-field so
+        // notes or status typed since last cloud sync are never overwritten.
+        let cloud;
+        try { cloud = JSON.parse(value); } catch { continue; }
+        const local = getJSON(K.progress, {});
+        const merged = { ...cloud };
+        const statusRank = { complete: 3, in_progress: 2, not_started: 1 };
+        for (const [id, loc] of Object.entries(local)) {
+          const cl = cloud[id] || {};
+          merged[id] = { ...cl, ...loc };
+          // Never downgrade a status that's already been recorded in the cloud
+          if ((statusRank[cl.status] || 0) > (statusRank[loc.status] || 0)) {
+            merged[id].status = cl.status;
+          }
+        }
+        localStorage.setItem(K.progress, JSON.stringify(merged));
+      } else {
+        localStorage.setItem(key, value);
+      }
     }
     state.syncedOnce = true;
     return true;
@@ -828,6 +848,7 @@ async function renderReading(main) {
     latest[item.num] = { ...latest[item.num], status: statusSelect.value };
     setJSON(K.progress, latest);
     recordActivity(1, item.areaCode);
+    flushCloudSync();
     toast('Status saved', 'good');
   });
 
@@ -849,7 +870,7 @@ async function renderReading(main) {
     window.clearTimeout(noteSaveTimer);
     noteSaveTimer = window.setTimeout(saveNotes, 450);
   });
-  notes.addEventListener('blur', saveNotes);
+  notes.addEventListener('blur', () => { saveNotes(); flushCloudSync(); });
 
   main.append(card([
     dom('div', { className: 'grid two' }, [
@@ -1397,6 +1418,11 @@ async function sendTutorQuestion(item, question) {
 async function bootstrap() {
   await ensureProgress();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(error => console.error('Service worker registration failed', error));
+  // Flush any pending writes to cloud before the browser discards the page.
+  window.addEventListener('pagehide', () => flushCloudSync());
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushCloudSync();
+  });
   if (authToken()) {
     await pullFromCloud({ silent: true });
     await ensureProgress();
